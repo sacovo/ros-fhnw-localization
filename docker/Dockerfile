@@ -69,6 +69,7 @@ RUN useradd -ms /bin/bash ros && \
 # Finnaly, copy the built packages
 COPY --chown=ros:ros --from=build /work/install /work/install
 COPY --chown=ros:ros --from=build /work/config /work/config
+COPY --chown=ros:ros --from=build /work/launch /work/launch
 
 USER ros
 
