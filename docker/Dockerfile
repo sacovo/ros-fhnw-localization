@@ -1,5 +1,5 @@
 # Dockerfile for building ROS 2 packages
-FROM ros:humble-ros-core as base
+FROM ros:humble-ros-core AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -17,7 +17,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
 
 WORKDIR /work
 
-FROM base as builder
+FROM base AS builder
 
 # Install packages for building ROS 2 packages
 
