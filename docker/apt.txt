@@ -1,8 +1,1 @@
-# Hello!
-ros-humble-rosbridge-server
-ros-humble-foxglove-bridge
-
-# Use in navigation
-ros-humble-vision-opencv
-ros-humble-navigation2
-ros-humble-nav2-bringup
+# Place apt packages here
