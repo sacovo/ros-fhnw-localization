@@ -16,3 +16,4 @@ build-docker-image:
     - docker push $CI_REGISTRY_IMAGE:builder
   variables:
     IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+    GIT_SUBMODULE_STRATEGY: recursive
