@@ -1,0 +1,12 @@
+[submodule "MINS"]
+	path = MINS
+	url = https://github.com/sacovo/MINS.git
+[submodule "open_vins"]
+	path = open_vins
+	url = https://github.com/rpng/open_vins.git
+[submodule "opencv_cam"]
+	path = opencv_cam
+	url = https://github.com/sacovo/opencv_cam
+[submodule "ros2_shared"]
+	path = ros2_shared
+	url = https://github.com/ptrmu/ros2_shared.git
