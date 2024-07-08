@@ -42,7 +42,7 @@ FROM builder AS build
 
 COPY . .
 
-RUN --mount=type=cache,target=/work/build colcon build
+RUN --mount=type=cache,target=/work/build . /opt/ros/humble/setup.sh && colcon build
 
 # Switch to the base image and copy the built packages
 FROM base
