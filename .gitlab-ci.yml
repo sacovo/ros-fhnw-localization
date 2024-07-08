@@ -2,7 +2,7 @@ stages:
   - build
 
 before_script:
-  - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.fhnw.ch".insteadOf "https://gitlab.fhnw.ch"
+  - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.fhnw.ch/fhnw-rover/fhnw-interfaces.git".insteadOf "https://gitlab.fhnw.ch/fhnw-rover/fhnw-interfaces.git"
   - git submodule sync
   - git submodule update --init
 
