@@ -11,4 +11,4 @@ build-docker-image:
     - docker build -f ./docker/Dockerfile -t $IMAGE .
     - docker push $IMAGE
   variables:
-    IMAGE: $CI_REGISTRY/$CI_PROJECT_PATH:$APP_TAG
+    IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
