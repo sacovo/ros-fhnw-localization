@@ -31,6 +31,8 @@ RUN  --mount=type=cache,target=/var/cache/apt \
     python3-vcstool \
     $(cat /tmp/apt-dev.txt | grep -v "^#") && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+    
+FROM builder AS build
 
 COPY . .
 
@@ -49,7 +51,7 @@ RUN useradd -ms /bin/bash ros && \
     echo "ros ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 # Finnaly, copy the built packages
-COPY --chown=ros:ros --from=builder /work/install /work/install
+COPY --chown=ros:ros --from=build /work/install /work/install
 
 USER ros
 
