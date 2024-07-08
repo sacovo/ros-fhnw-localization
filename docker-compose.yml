@@ -1,0 +1,7 @@
+services:
+  ros:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.dev
+    volumes:
+      - ./.ros:/home/ros/.ros

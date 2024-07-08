@@ -1,0 +1,29 @@
+# Docker image with graphical tools for ROS development
+FROM osrf/ros:humble-desktop
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+COPY ./docker/apt.txt ./docker/apt-dev.txt ./docker/requirements.txt /tmp/
+
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update --fix-missing &&  \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+        python3-pip \
+        $(cat /tmp/apt.txt | grep -v "^#") \
+        $(cat /tmp/apt-dev.txt | grep -v "^#") && \
+    pip3 install --no-cache-dir pip-tools -r /tmp/requirements.txt && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+WORKDIR /work
+    
+RUN useradd -ms /bin/bash ros && \
+    chown ros:ros /work && \
+    usermod -aG sudo ros && \
+    echo "ros ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+USER ros
+
+RUN --mount=type=cache,target=/var/cache/apt rosdep update
+
+RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc

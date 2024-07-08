@@ -1,0 +1,5 @@
+libpthread-stubs0-dev
+libusb-1.0-0-dev
+g++
+ros-humble-rviz2
+make
