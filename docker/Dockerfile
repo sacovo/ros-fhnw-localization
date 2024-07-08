@@ -3,7 +3,7 @@ FROM ros:humble-ros-core AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-COPY ./docker/apt.txt ./docker/apt-dev.txt ./docker/requirements.txt /tmp/
+COPY ./docker/apt.txt  ./docker/requirements.txt /tmp/
 
 # Install required packages and Python dependencies
 RUN --mount=type=cache,target=/var/cache/apt \
@@ -22,6 +22,8 @@ FROM base AS builder
 
 # Install packages for building ROS 2 packages
 
+COPY ./docker/apt-dev.txt /tmp/
+
 RUN  --mount=type=cache,target=/var/cache/apt \
     apt-get update && apt-get install --no-install-recommends -y \
     build-essential \
@@ -34,8 +36,7 @@ RUN  --mount=type=cache,target=/var/cache/apt \
     make \
     python3-catkin-pkg-modules \
     ros-humble-ament-cmake \
-    $(cat /tmp/apt-dev.txt | grep -v "^#") && \
-    rm -rf /var/lib/apt/lists/*
+    $(cat /tmp/apt-dev.txt | grep -v "^#")
     
 FROM builder AS build
 
