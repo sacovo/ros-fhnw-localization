@@ -32,6 +32,10 @@ RUN  --mount=type=cache,target=/var/cache/apt \
     python3-rosdep \
     python3-vcstool \
     libboost-all-dev \
+    g++ \
+    make \
+    python3-catkin-pkg-modules \
+    ros-humble-ament-cmake \
     $(cat /tmp/apt-dev.txt | grep -v "^#")
     
 FROM builder AS build
