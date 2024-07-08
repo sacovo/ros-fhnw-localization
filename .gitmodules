@@ -12,4 +12,4 @@
 	url = https://github.com/ptrmu/ros2_shared.git
 [submodule "fhnw-interfaces"]
 	path = fhnw-interfaces
-	url = git@gitlab.fhnw.ch:fhnw-rover/fhnw-interfaces.git
+	url = https://gitlab.fhnw.ch/fhnw-rover/fhnw-interfaces.git
