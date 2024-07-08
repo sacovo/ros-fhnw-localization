@@ -3,23 +3,25 @@ FROM ros:humble-ros-core AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-COPY ./docker/apt.txt ./docker/apt-dev.txt ./docker/requirements.txt /tmp/
+COPY ./docker/apt.txt ./docker/requirements.txt /tmp/
 
 # Install required packages and Python dependencies
 RUN --mount=type=cache,target=/var/cache/apt \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get update --fix-missing &&  \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
         sudo python3-pip \
         $(cat /tmp/apt.txt | grep -v "^#") && \
-    pip3 install --no-cache-dir -r /tmp/requirements.txt && \
-    apt-get clean && rm /tmp/* 
+    pip3 install --no-cache-dir -r /tmp/requirements.txt
 
 WORKDIR /work
 
 FROM base AS builder
 
 # Install packages for building ROS 2 packages
+
+COPY ./docker/apt-dev.txt /tmp/
 
 RUN  --mount=type=cache,target=/var/cache/apt \
     apt-get update && apt-get install --no-install-recommends -y \
@@ -29,14 +31,24 @@ RUN  --mount=type=cache,target=/var/cache/apt \
     python3-colcon-mixin \
     python3-rosdep \
     python3-vcstool \
-    $(cat /tmp/apt-dev.txt | grep -v "^#") && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+    libboost-all-dev \
+    $(cat /tmp/apt-dev.txt | grep -v "^#")
     
 FROM builder AS build
 
 COPY . .
 
-RUN colcon build
+RUN --mount=type=cache,target=/work/build \
+    . /opt/ros/humble/setup.sh && \
+    colcon build --paths MINS/thirdparty/* ros2_shared opencv_cam && \
+    . install/setup.sh && \
+    colcon build --paths MINS/thirdparty/open_vins/* && \
+    . install/setup.sh && \
+    colcon build --paths MINS/mins MINS/mins_data && \
+    . install/setup.sh && \
+    colcon build --paths MINS/mins_eval && \
+    . install/setup.sh && \
+    colcon build
 
 # Switch to the base image and copy the built packages
 FROM base
@@ -52,6 +64,7 @@ RUN useradd -ms /bin/bash ros && \
 
 # Finnaly, copy the built packages
 COPY --chown=ros:ros --from=build /work/install /work/install
+COPY --chown=ros:ros --from=build /work/config /work/config
 
 USER ros
 

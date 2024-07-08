@@ -1,5 +1,6 @@
-libpthread-stubs0-dev
-libusb-1.0-0-dev
-g++
-ros-humble-rviz2
-make
+libceres-dev
+libeigen3-dev
+libopencv-core-dev
+libopencv-dev
+libpcl-dev
+libpcl-msgs-dev
