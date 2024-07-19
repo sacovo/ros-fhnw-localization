@@ -132,21 +132,23 @@ def get_transformer():
 def get_estimator():
     estimator = os.environ.get("ESTIMATOR", "openvins")
     if estimator == "openvins":
+        estimator_config = os.environ.get("ESTIMATOR_CONFIG", "config/openvins/estimator_config.yaml")
         return [
             Node(
                 package="ov_msckf",
                 namespace="",
                 executable="run_subscribe_msckf",
-                arguments=["config/rover/openvins/estimator_config.yaml"],
+                arguments=[estimator_config],
             )
         ]
     elif estimator == "mins":
+        estimator_config = os.environ.get("ESTIMATOR_CONFIG", "config/mins/config.yaml")
         return [
             Node(
                 package="mins",
                 namespace="",
                 executable="subscribe",
-                arguments=["config/mins/rover/config.yaml"],
+                arguments=[estimator_config],
             )
         ]
     return []
