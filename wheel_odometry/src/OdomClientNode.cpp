@@ -211,7 +211,6 @@ public:
 
         publisher->publish(msg);
         auto now = this->node->get_clock()->now();
-        RCLCPP_INFO(node->get_logger(), "Published speed: %.6f [%.6f]", ts.seconds(), now.seconds());
         has_steering = false;
         has_speed = false;
     }
@@ -245,7 +244,6 @@ public:
         
         auto delta_duration = rclcpp::Duration(0, delta * 1000);
 
-        RCLCPP_INFO(this->node->get_logger(), "T1: %.6d, %d, delta: %.6f", t1, delta, delta_duration.seconds());
         // seconds, nanseconds, but nanoseconds wrap automatically
         ts += delta_duration;
         t0 = t1;
