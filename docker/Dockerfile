@@ -11,7 +11,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update --fix-missing &&  \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
-        sudo python3-pip \
+        sudo python3-pip bash \
         $(cat /tmp/apt.txt | grep -v "^#") && \
     pip3 install --no-cache-dir -r /tmp/requirements.txt && \
     rm /tmp/* 
@@ -34,9 +34,12 @@ RUN  --mount=type=cache,target=/var/cache/apt \
     python3-vcstool \
     g++ \
     make \
+    dos2unix \
     python3-catkin-pkg-modules \
     ros-humble-ament-cmake \
     $(cat /tmp/apt-dev.txt | grep -v "^#")
+
+
     
 FROM builder AS build
 
@@ -44,17 +47,21 @@ COPY . .
 
 RUN --mount=type=cache,target=/work/build . /opt/ros/humble/setup.sh && colcon build
 
+RUN dos2unix docker/entrypoint.sh
+
 # Switch to the base image and copy the built packages
 FROM base
 
 # Entrypoint sources setup.bash with built packages
-COPY docker/entrypoint.sh /entrypoint.sh
+COPY --from=build /work/docker/entrypoint.sh /entrypoint.sh
 
 # Add user ros with sudo privileges
 RUN useradd -ms /bin/bash ros && \
     chown ros:ros /work && \
     usermod -aG sudo ros && \
-    echo "ros ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+    echo "ros ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
+    echo "source /opt/ros/humble/setup.bash" >> /home/ros/.bashrc && \
+    echo "source /work/install/setup.bash" >> /home/ros/.bashrc
 
 # Finnaly, copy the built packages
 COPY --chown=ros:ros --from=build /work/install /work/install
