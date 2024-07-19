@@ -1,0 +1,32 @@
+%YAML:1.0 # need to specify the file type at the top!
+
+wheel:
+  enabled: true
+  type: "Rover" #  Wheel2DAng, Wheel2DLin, Wheel2DCen, Wheel3DAng, Wheel3DLin, Wheel3DCen
+  do_calib_dt: false
+  do_calib_ext: true
+  do_calib_int: false
+  noise_w: .01
+  noise_v: .01
+  noise_p: .01
+  init_cov_dt: 1e-4
+  init_cov_ex_o: 1e-4
+  init_cov_ex_p: 1e-3
+  init_cov_in_b: 1e-3
+  init_cov_in_r: 1e-3
+  chi2_mult: 15
+  timeoffset: 0.02
+    # wheel radius, length, width
+  intrinsics: [0.143, 0.84, 0.84]
+  reuse_of_information: false
+  timeoffset:  0.026
+  T_imu_wheel:
+    # - [1.0, 0.0, 0.0, 0.0]
+    # - [0.0, 1.0, 0.0, 0.0]
+    # - [0.0, 0.0, 1.0, 0.0]
+    # - [0.0, 0.0, 0.0, 1.0]
+    - [ 0.0, 1.0, 0.0, 0.16]
+    - [-1.0, 0.0, 0.0, 0.0]
+    - [ 0.0, 0.0, 1.0, 0.0]
+    - [ 0.0, 0.0, 0.0, 1.0]
+  topic: "/wheel/joint_states"

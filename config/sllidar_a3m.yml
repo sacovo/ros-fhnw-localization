@@ -1,0 +1,23 @@
+/sllidar_node:
+  ros__parameters:
+    angle_compensate: true
+    channel_type: serial
+    frame_id: laser
+    inverted: false
+    qos_overrides:
+      /parameter_events:
+        publisher:
+          depth: 1000
+          durability: volatile
+          history: keep_last
+          reliability: reliable
+    scan_frequency: 10.0
+    scan_mode: Sensitivity
+    serial_baudrate: 256000
+    serial_port: /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_309d0336b6d6b440a4d39f60c1408670-if00-port0
+    tcp_ip: 192.168.0.7
+    tcp_port: 20108
+    udp_ip: 192.168.11.2
+    udp_port: 8089
+    use_sim_time: false
+

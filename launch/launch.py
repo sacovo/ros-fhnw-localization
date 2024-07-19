@@ -1,7 +1,10 @@
 from ament_index_python import get_package_share_directory
+import subprocess
 from launch_ros.actions import Node
 import os
+import glob
 from launch import LaunchDescription
+import yaml
 
 
 # ros2 run opencv_cam opencv_cam_main --ros-args --remap /image_raw:=/my_camera/image_raw --params-file config/cameras.yml
@@ -21,6 +24,12 @@ ZED_INDEX = int(os.environ.get("ZED_INDEX", -1))
 
 
 def get_camera_nodes():
+
+    # Make sure we have access to all /dev/video* devices
+    devices = glob.glob("/dev/video*")
+    for device in devices:
+        subprocess.run(["sudo", "chmod", "777", device])
+
     return [
         Node(
             package="opencv_cam",
@@ -61,12 +70,17 @@ def get_camera_nodes():
 
 def get_imu_node():
 
-    config = (
-        os.path.join(
-            "config",
-            "hipnuc_config.yml",
-        ),
+    config = os.path.join(
+        "config",
+        "hipnuc_config.yml",
     )
+
+    with open(config, "r") as f:
+        config_dict = yaml.load(f, Loader=yaml.FullLoader)
+
+    serial_port = config_dict["IMU_publisher"]["ros__parameters"]["serial_port"]
+
+    subprocess.run(["sudo", "chmod", "777", serial_port])
 
     return [
         Node(
@@ -103,7 +117,7 @@ def get_transformer():
             {"yaw": 0.0},
             {"initial_position": [0.0, 0.0, 0.0]},
             {"initial_orientation": [0.0, 0.0, 0.0]},
-            {"odom_in":  os.environ.get("ODOM_IN", "/odomimu")},
+            {"odom_in": os.environ.get("ODOM_IN", "/odomimu")},
             {"odom_out": os.environ.get("ODOM_OUT", "/odomrover")},
             {"path_in": os.environ.get("PATH_IN", "/pathimu")},
             {"path_out": os.environ.get("PATH_OUT", "/pathrover")},
@@ -111,8 +125,9 @@ def get_transformer():
             {"pose_out": os.environ.get("POSE_OUT", "/poserover")},
         ],
     )
-    
+
     return [transformer]
+
 
 def get_estimator():
     estimator = os.environ.get("ESTIMATOR", "openvins")
@@ -139,5 +154,9 @@ def get_estimator():
 
 def generate_launch_description():
     return LaunchDescription(
-        get_camera_nodes() + get_imu_node() + get_wheel_odom() + get_estimator() + get_transformer()
+        get_camera_nodes()
+        + get_imu_node()
+        + get_wheel_odom()
+        + get_estimator()
+        + get_transformer()
     )

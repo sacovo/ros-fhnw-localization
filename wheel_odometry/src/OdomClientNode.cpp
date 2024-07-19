@@ -28,7 +28,7 @@ static constexpr int WHEELS = 4;
 static constexpr int COUNT = 1 + WHEELS * (1 + 1 + 1) + 1 + 1 + 1; // = 16
 static constexpr int MESSAGE_SIZE = COUNT * sizeof(int32_t);
 
-static constexpr int32_t MAX_TIMESTAMP = 2147483647;
+static constexpr int32_t MAX_TIMESTAMP =  2147483647;
 static constexpr int32_t MIN_TIMESTAMP = -2147483648;
 
 namespace kn = kissnet;
@@ -154,7 +154,11 @@ public:
 
         RCLCPP_INFO(node->get_logger(), "Creating publisher");
 
-        publisher = node->create_publisher<sensor_msgs::msg::JointState>("wheel_odom", rclcpp::QoS(100));
+        node->declare_parameter("joint_state_topic", "/wheel/joint_states");
+
+        publisher = node->create_publisher<sensor_msgs::msg::JointState>(
+            node->get_parameter("joint_state_topic").as_string(),
+            rclcpp::QoS(100));
         RCLCPP_INFO(node->get_logger(), "Creating client 1 %s", angle_addr.c_str());
         angle_client = std::make_unique<ControllerClient>(angle_addr, node, [this](std::array<int32_t, COUNT> data)
                                                           { this->callback_angle(data); });
@@ -206,6 +210,8 @@ public:
         };
 
         publisher->publish(msg);
+        auto now = this->node->get_clock()->now();
+        RCLCPP_INFO(node->get_logger(), "Published speed: %.6f [%.6f]", ts.seconds(), now.seconds());
         has_steering = false;
         has_speed = false;
     }
@@ -228,17 +234,20 @@ public:
         int delta;
 
         // Catch overflow
-        if (t1 < 0 && t0 > 0)
+        if (t1 < t0)
         {
-            auto delta = (MAX_TIMESTAMP - t0) + (MIN_TIMESTAMP - t1);
+            delta = (MAX_TIMESTAMP - t0) + (t1 - MIN_TIMESTAMP);
         }
         else
         {
             delta = t1 - t0;
         }
+        
+        auto delta_duration = rclcpp::Duration(0, delta * 1000);
 
+        RCLCPP_INFO(this->node->get_logger(), "T1: %.6d, %d, delta: %.6f", t1, delta, delta_duration.seconds());
         // seconds, nanseconds, but nanoseconds wrap automatically
-        ts += rclcpp::Duration(0, delta * 1000);
+        ts += delta_duration;
         t0 = t1;
 
         lock.lock();

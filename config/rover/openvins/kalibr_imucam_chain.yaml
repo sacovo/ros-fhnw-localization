@@ -1,4 +1,5 @@
 %YAML:1.0
+
 cam0:
   T_imu_cam:
     - [-0.99837637,  0.01212317, -0.05565648,  0.10989205]
@@ -12,8 +13,9 @@ cam0:
   distortion_model: radtan
   intrinsics: [522.5159149961529, 522.9380495250383, 654.5163410138881, 352.57827647130296]
   resolution: [1280, 720]
-  rostopic: /zed/image_raw
+  rostopic: /zed/image_raw/compressed
   timeshift_cam_imu: -0.03885948494333034
+  use_compression: true
 cam1:
   T_imu_cam:
     - [-0.99858093,  0.01099065, -0.0521089 , -0.00912465]
@@ -31,6 +33,6 @@ cam1:
   distortion_model: radtan
   intrinsics: [522.3872125782617, 522.3793752519603, 655.7746672344474, 359.05848846088776]
   resolution: [1280, 720]
-  rostopic: /zed/image_raw2
+  rostopic: /zed/image_raw2/compressed
   timeshift_cam_imu: -0.0389010602235224
 

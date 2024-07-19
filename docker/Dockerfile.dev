@@ -3,16 +3,16 @@ FROM osrf/ros:humble-desktop
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-COPY ./docker/apt.txt ./docker/apt-dev.txt ./docker/requirements.txt /tmp/
+COPY ./docker/apt.txt ./docker/apt-dev.txt ./docker/dev-requirements.txt ./docker/requirements.txt /tmp/
 
 RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update --fix-missing &&  \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
-        python3-pip \
+        python3-pip gdb \
         $(cat /tmp/apt.txt | grep -v "^#") \
         $(cat /tmp/apt-dev.txt | grep -v "^#") && \
-    pip3 install --no-cache-dir pip-tools -r /tmp/requirements.txt && \
+    pip3 install --no-cache-dir pip-tools -r /tmp/requirements.txt -r /tmp/dev-requirements.txt && \
     apt-get clean && rm -rf /tmp/* /var/tmp/*
 
 WORKDIR /work
@@ -26,4 +26,5 @@ USER ros
 
 RUN --mount=type=cache,target=/var/cache/apt rosdep update
 
-RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc && \
+    echo 'export PATH=$PATH:/home/ros/.local/bin' >> ~/.bashrc

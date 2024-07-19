@@ -11,6 +11,7 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -30,9 +31,13 @@ ament_target_dependencies(odom_node rclcpp sensor_msgs)
 add_executable(calc_node src/WheelCalc.cpp)
 ament_target_dependencies(calc_node rclcpp sensor_msgs nav_msgs geometry_msgs)
 
+add_executable(twist_integrator src/TwistIntegrator.cpp)
+ament_target_dependencies(twist_integrator tf2_ros rclcpp sensor_msgs nav_msgs geometry_msgs)
+
 install(TARGETS
   odom_node
   calc_node
+  twist_integrator
   DESTINATION lib/${PROJECT_NAME}
 )
 
