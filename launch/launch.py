@@ -29,25 +29,29 @@ def get_camera_nodes():
     devices = glob.glob("/dev/video*")
     for device in devices:
         subprocess.run(["sudo", "chmod", "777", device])
+    cameras = []
+    
+    if not os.environ.get("DISABLE_PI", False):
+        cameras = [
+            Node(
+                package="opencv_cam",
+                namespace=f"camera_{dir}",
+                executable="opencv_cam_main",
+                name=f"cam_{dir}",
+                remappings=[
+                    ("/image_raw", f"/cam_{dir}/raw"),
+                ],
+                parameters=[
+                    {
+                        "file": True,
+                        "filename": url,
+                    }
+                ],
+            )
+            for dir, url in camera_urls
+        ]
 
-    return [
-        Node(
-            package="opencv_cam",
-            namespace=f"camera_{dir}",
-            executable="opencv_cam_main",
-            name=f"cam_{dir}",
-            remappings=[
-                ("/image_raw", f"/cam_{dir}/raw"),
-            ],
-            parameters=[
-                {
-                    "file": True,
-                    "filename": url,
-                }
-            ],
-        )
-        for dir, url in camera_urls
-    ] + [
+    return cameras + [
         Node(
             package="opencv_cam",
             namespace=f"zed",
