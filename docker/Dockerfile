@@ -45,17 +45,7 @@ FROM builder AS build
 
 COPY . .
 
-RUN --mount=type=cache,target=/work/build \
-    . /opt/ros/humble/setup.sh && \
-    colcon build --paths MINS/thirdparty/* ros2_shared opencv_cam && \
-    . install/setup.sh && \
-    colcon build --paths MINS/thirdparty/open_vins/* && \
-    . install/setup.sh && \
-    colcon build --paths MINS/mins MINS/mins_data && \
-    . install/setup.sh && \
-    colcon build --paths MINS/mins_eval && \
-    . install/setup.sh && \
-    colcon build
+RUN --mount=type=cache,target=/work/build sh build.sh
 
 RUN dos2unix docker/entrypoint.sh
 

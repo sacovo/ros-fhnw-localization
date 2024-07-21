@@ -27,4 +27,5 @@ USER ros
 RUN --mount=type=cache,target=/var/cache/apt rosdep update
 
 RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc && \
+    echo "source /work/install/setup.bash" >> ~/.bashrc && \
     echo 'export PATH=$PATH:/home/ros/.local/bin' >> ~/.bashrc

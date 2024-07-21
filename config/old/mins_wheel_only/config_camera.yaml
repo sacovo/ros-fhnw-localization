@@ -1,21 +1,21 @@
 %YAML:1.0 # need to specify the file type at the top!
 
 cam:
-  enabled: true
+  enabled: false
   max_n: 2
   use_stereo: true
   stereo_pair: [0, 1]
-  do_calib_ext: false
-  do_calib_int: false
+  do_calib_ext: true
+  do_calib_int: true
   do_calib_dt: false
-  n_pts: 200
-  fast: 20
+  n_pts: 500
+  fast: 50
   grid_x: 5
   grid_y: 5
   min_px_dist: 10
   knn: 0.70
   downsample: false
-  histogram_method: "CLAHE" # NONE, HISTOGRAM, CLAHE
+  histogram_method: "HISTOGRAM" # NONE, HISTOGRAM, CLAHE
   max_slam: 120
   max_msckf: 120
   feat_rep: "GLOBAL_3D"
