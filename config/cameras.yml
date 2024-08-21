@@ -1,38 +1,4 @@
-%YAML:1.0 # need to specify the file type at the top!
 
-cam:
-  enabled: true
-  max_n: 2
-  use_stereo: true
-  stereo_pair: [0, 1]
-  do_calib_ext: false
-  do_calib_int: false
-  do_calib_dt: false
-  n_pts: 100
-  fast: 10
-  grid_x: 15
-  grid_y: 15
-  min_px_dist: 10
-  knn: 0.70
-  downsample: false
-  histogram_method: "CLAHE" # NONE, HISTOGRAM, CLAHE
-  max_slam: 120
-  max_msckf: 120
-  feat_rep: "GLOBAL_3D"
-  init_cov_dt: 1e-4
-  init_cov_ex_o: 1e-4
-  init_cov_ex_p: 1e-4
-  init_cov_in_k: 1e-4
-  init_cov_in_c: 1e-4
-  init_cov_in_r: 1e-4
-  sigma_px: 1
-  chi2_mult: 1
-
-  # ==================================================================
-  # ==================================================================
-
-# Values from calib_imu_zed_004-camchain-imucam.yaml
-#
 cam0:
   T_imu_cam:
     - [-0.031, 0.014, 0.999, 0.309]
@@ -45,7 +11,7 @@ cam0:
   distortion_model: radtan
   intrinsics: [522.5159149961529, 522.9380495250383, 654.5163410138881, 352.57827647130296]
   resolution: [1280, 720]
-  topic: /zed/image_raw/compressed
+  topic: /zed/image_raw
   timeoffset: -0.03
   compressed: true
 
@@ -67,6 +33,6 @@ cam1:
   distortion_model: radtan
   intrinsics: [522.3872125782617, 522.3793752519603, 655.7746672344474, 359.05848846088776]
   resolution: [1280, 720]
-  topic: /zed/image_raw2/compressed
+  topic: /zed/image_raw2
   timeoffset: -0.03
   compressed: true

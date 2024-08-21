@@ -1,7 +1,7 @@
 %YAML:1.0 # need to specify the file type at the top!
 
 vicon:
-  enabled: true
+  enabled: false
   max_n: 1
   noise_o: 0.01
   noise_p: 0.01
