@@ -1,6 +1,8 @@
 #!/bin/sh
 
-mkdir install && cd install 
+mkdir -p install && cd install 
+
+rm -rf mins mins_data mins_eval
 
 wget https://github.com/sacovo/MINS/releases/download/latest-build/ros_install.tar.gz
 tar -xvf ros_install.tar.gz
