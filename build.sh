@@ -1,12 +1,9 @@
 #!/bin/sh
 
-. /opt/ros/humble/setup.sh && \
-    colcon build --paths MINS/thirdparty/* ros2_shared opencv_cam && \
-    . install/setup.sh && \
-    colcon build --paths MINS/thirdparty/open_vins/* && \
-    . install/setup.sh && \
-    colcon build --paths MINS/mins MINS/mins_data && \
-    . install/setup.sh && \
-    colcon build --paths MINS/mins_eval && \
-    . install/setup.sh && \
-    colcon build
+mkdir install && cd install 
+
+wget https://github.com/sacovo/MINS/releases/download/latest-build/ros_install.tar.gz
+tar -xvf ros_install.tar.gz
+rm ros_install.tar.gz
+
+colcon build

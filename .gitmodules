@@ -1,9 +1,3 @@
-[submodule "MINS"]
-	path = MINS
-	url = https://github.com/sacovo/MINS.git
-[submodule "open_vins"]
-	path = open_vins
-	url = https://github.com/sacovo/open_vins.git
 [submodule "opencv_cam"]
 	path = opencv_cam
 	url = https://github.com/sacovo/opencv_cam

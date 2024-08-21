@@ -9,6 +9,7 @@
 install/
 log/
 build/
+.ros
 
 # Ignore generated docs
 *.dox
