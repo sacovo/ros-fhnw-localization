@@ -32,6 +32,7 @@ RUN  --mount=type=cache,target=/var/cache/apt \
     python3-rosdep \
     python3-vcstool \
     libboost-all-dev \
+    wget \
     g++ \
     make \
     dos2unix \
