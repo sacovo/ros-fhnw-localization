@@ -8,4 +8,6 @@ wget https://github.com/sacovo/MINS/releases/download/latest-build/ros_install.t
 tar -xvf ros_install.tar.gz
 rm ros_install.tar.gz
 
+cd ..
+
 colcon build
