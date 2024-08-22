@@ -2,10 +2,10 @@
   ros__parameters:
     aruco_dict: DICT_5X5_100
     camera_params_file: config/cameras.yml
-    height_over_ground: 0.417
-    marker_length: 0.1
+    height_over_ground: 0.0
+    marker_length: 0.14
     marker_positions_file: config/markers_fh.yml
     odom_topic: /odom
     pose_pub_topic: /pose_with_covariance
-    publish_detections: false
+    publish_detections: true
     use_sim_time: false
