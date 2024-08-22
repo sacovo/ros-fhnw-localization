@@ -46,9 +46,6 @@ class TagObservation:
     rvec: np.ndarray
     tvec: np.ndarray
     corners: np.ndarray
-    T_imu_cam: np.ndarray
-    camera_matrix: np.ndarray
-    dist_coeffs: np.ndarray
     cam: Camera
 
 class ArucoProcessor:
@@ -345,13 +342,13 @@ class ArucoPoseEstimator(Node):
             camera = Camera(
                name=cam_key,
                 T_imu_cam=np.array(cam_params.get("T_imu_cam", [])),
-                camera_matrix=np.array(cam_params.get("intrinsics", [])),
+                camera_matrix=None,
                 dist_coeffs=np.array(cam_params.get("distortion_coeffs", [])),
                 topic=cam_params.get("topic", ""),
             )
-            }
-            if len(camera["intrinsics"]) == 4:
-                fx, fy, cx, cy = camera.intrinsics
+            intrinsics = cam_params.get("intrinsics", [])
+            if len(intrinsics) == 4:
+                fx, fy, cx, cy = intrinsics
                 camera.camera_matrix = np.array(
                     [[fx, 0, cx], [0, fy, cy], [0, 0, 1]]
                 )
@@ -405,7 +402,7 @@ class ArucoPoseEstimator(Node):
 
             cam_observations, cam_tags = self.processor.estimate_pose(corners, ids, cam, cv_image)
             for obs in cam_observations:
-                tvec = ArucoProcessor.get_global_position(obs.tvec[0], obs.rvec[0][0], obs.T_imu_cam)
+                tvec = ArucoProcessor.get_global_position(obs.tvec[0], obs.rvec[0][0], obs.cam.T_imu_cam)
                 tvec = obs.tvec[0][0]
 
                 quat = R.from_rotvec(obs.rvec[0][0]).as_quat()
