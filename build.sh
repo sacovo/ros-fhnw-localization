@@ -10,5 +10,5 @@ rm ros_install.tar.gz
 
 cd ..
 
-source install/setup.bash
+. install/setup.sh
 colcon build
