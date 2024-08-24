@@ -3,59 +3,160 @@ import cv2
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
+#   - [ 0., 0., 1., 0.0]
+#   - [-1., 0., 0., 0.0]
+#   - [ 0.,-1., 0., 0.0]
+#   - [ 0., 0., 0., 1.0]
 
-def test_marker_to_camera_transform():
-    M = R.identity().as_matrix()
 
-    cam = ArucoPoseEstimator.load_camera_parameters("cameras.yml")[0]
-    print(cam["T_imu_cam"])
-    T_imu_cam = cam["T_imu_cam"]
+#   - [ 0., 1., 0., 0.0]
+#   - [ 0., 0., 1., 0.0]
+#   - [ 1., 0., 0., 0.0]
+#   - [ 0., 0., 0., 1.0]
 
-    print(R.from_matrix(T_imu_cam[:3, :3]).as_euler("xyz", degrees=True))
 
-    ps = [
-        [10.0, 0, 0],
-        [0.0, 10000, 0],
-        [10.0, -10, 0],
-        [10.0, 10, 0],
-        [0.0, 1.0, 1],
-        [0.0, 1.0, 10.0],
-        [0.0, 1.0, -10.0],
-    ]
-    for p in ps:
+def test_projection():
+    coordinate_transform = np.array(
+        [
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
 
-        x, _ = cv2.projectPoints(
-            np.array([p]),
-            T_imu_cam[:3, :3],
-            T_imu_cam[:3, 3],
-            cam["camera_matrix"],
-            cam["dist_coeffs"],
-        )
-        print("P", p)
-        print("x", x)
+    camera_matrix = np.array(
+        [
+            [500, 0, 500.0],
+            [0, 500, 300.0],
+            [0, 0, 1.0],
+        ]
+    )
+
+    projected_points, _ = cv2.projectPoints(
+        np.array([10.0, 10.0, 0.0]),
+        coordinate_transform[:3, :3],
+        coordinate_transform[:3, 3],
+        camera_matrix,
+        np.array([0.0, 0.0, 0.0, 0.0]),
+    )
+
+    assert projected_points[0][0][1] == 300.0
+    assert projected_points[0][0][0] == 1000.0
+
+    projected_points, _ = cv2.projectPoints(
+        np.array([10.0, 0.0, 0.0]),
+        coordinate_transform[:3, :3],
+        coordinate_transform[:3, 3],
+        camera_matrix,
+        np.array([0.0, 0.0, 0.0, 0.0]),
+    )
+
+    assert projected_points[0][0][1] == 300.0
+    assert projected_points[0][0][0] == 500.0
+
+    projected_points, _ = cv2.projectPoints(
+        np.array([10.0, -10.0, 0.0]),
+        coordinate_transform[:3, :3],
+        coordinate_transform[:3, 3],
+        camera_matrix,
+        np.array([0.0, 0.0, 0.0, 0.0]),
+    )
+
+    assert projected_points[0][0][1] == 300.0
+    assert projected_points[0][0][0] == 0.0
+
+    projected_points, _ = cv2.projectPoints(
+        np.array([10.0, -10.0, 10.0]),
+        coordinate_transform[:3, :3],
+        coordinate_transform[:3, 3],
+        camera_matrix,
+        np.array([0.0, 0.0, 0.0, 0.0]),
+    )
+
+    assert projected_points[0][0][1] == 800.0
+    assert projected_points[0][0][0] == 0.0
+
+    projected_points, _ = cv2.projectPoints(
+        np.array([5.0, -10.0, 0.00]),
+        coordinate_transform[:3, :3],
+        coordinate_transform[:3, 3],
+        camera_matrix,
+        np.array([0.0, 0.0, 0.0, 0.0]),
+    )
+
+    assert projected_points[0][0][1] == 300.0
+    assert projected_points[0][0][0] == -500.0
+
+    rotation = R.from_euler("xyz", [0.0, 0.0, -90.0], degrees=True).as_matrix()
+
+    projected_points, _ = cv2.projectPoints(
+        np.array([0.0, 10.0, 0.00]),
+        coordinate_transform[:3, :3] @ np.linalg.inv(rotation),
+        coordinate_transform[:3, 3],
+        camera_matrix,
+        np.array([0.0, 0.0, 0.0, 0.0]),
+    )
+
+    assert projected_points[0][0][1] == 300.0
+    assert np.isclose(projected_points[0][0][0], 500.0)
+
+    rotation = R.from_euler("xyz", [0.0, 0.0, 0.0], degrees=True).as_matrix()
+    position = np.array([0.0, 5.0, 0])
+
+    projected_points, _ = cv2.projectPoints(
+        np.array([10.0, 5.0, 0.00]),
+        coordinate_transform[:3, :3] @ np.linalg.inv(rotation),
+        -(
+            coordinate_transform[:3, :3]
+            @ ((rotation @ coordinate_transform[:3, 3]) + position)
+        ),
+        camera_matrix,
+        np.array([0.0, 0.0, 0.0, 0.0]),
+    )
+
+    assert projected_points[0][0][1] == 300.0
+    assert projected_points[0][0][0] == 500.0
+
+    rotation = R.from_euler("xyz", [0.0, 0.0, -90.0], degrees=True).as_matrix()
+    position = np.array([0.0, 10.0, 0])
+
+    projected_points, _ = cv2.projectPoints(
+        np.array([10.0, 10.0, 0.00]),
+        coordinate_transform[:3, :3] @ np.linalg.inv(rotation),
+        -(
+            coordinate_transform[:3, :3]
+            @ ((rotation @ coordinate_transform[:3, 3]) + position)
+        ),
+        camera_matrix,
+        np.array([0.0, 0.0, 0.0, 0.0]),
+    )
+
+    assert projected_points[0][0][1] == 300.0
+    assert np.isclose(projected_points[0][0][0], 500.0)
+
+def test_coordinate_transform():
+    cam_to_base = np.array(
+        [
+            [0.0, 0.0, 1.0, 0.0],
+            [-1.0, 0.0, 0.0, 0.0],
+            [0.0, -1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+
+    target = np.array(
+        [
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+
+    x = np.linalg.inv(cam_to_base) @ target
+    print(x)
+
+    assert np.allclose(cam_to_base @ x, target)
+
     assert False
-
-
-if __name__ == "__main__":
-    cam = ArucoPoseEstimator.load_camera_parameters("cameras.yml")[0]
-    print(cam["T_imu_cam"])
-    T_imu_cam = cam["T_imu_cam"]
-    
-    R_imu_cam = R.from_matrix(T_imu_cam[:3, :3])
-    p_imu_cam = T_imu_cam[:3, 3]
-
-    p = np.array([0, 0, 0])
-    rot = R.identity()
-
-    while True:
-        p = np.array(
-            [float(x) for x in input("Enter point coordinates: ").split(" ") if x]
-        )
-        x, _ = cv2.projectPoints(
-            p,
-            (R_imu_cam * rot).as_matrix(),
-            (R_imu_cam * rot).apply(p_imu_cam) + p,
-            cam["camera_matrix"],
-            cam["dist_coeffs"],
-        )
-        print(x)

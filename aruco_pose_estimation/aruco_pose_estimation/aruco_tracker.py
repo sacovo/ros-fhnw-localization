@@ -1,4 +1,4 @@
-from typing import List, Set, Tuple
+from typing import Dict, List, Set, Tuple
 import time
 import yaml
 from rclpy.executors import MultiThreadedExecutor
@@ -16,11 +16,11 @@ from geometry_msgs.msg import (
     Quaternion,
 )
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge
 import rclpy
 from rclpy.node import Node
-from message_filters import ApproximateTimeSynchronizer, Subscriber
+from message_filters import ApproximateTimeSynchronizer, Subscriber, TimeSynchronizer
 import time
 
 import tf2_ros
@@ -39,6 +39,16 @@ class Camera:
     camera_matrix: np.ndarray
     dist_coeffs: np.ndarray
     topic: str
+    compressed: bool = False
+
+    def __repr__(self) -> str:
+        return "\n".join(
+            [
+                f"{k}: {v}" if isinstance(v, str) else f"{k}:\n {v}"
+                for k, v in self.__dict__.items()
+            ]
+        )
+
 
 @dataclass
 class TagObservation:
@@ -48,8 +58,15 @@ class TagObservation:
     corners: np.ndarray
     cam: Camera
 
+
 class ArucoProcessor:
-    def __init__(self, aruco_dict_name, marker_length, marker_positions, camera_params):
+    def __init__(
+        self,
+        aruco_dict_name: str,
+        marker_length: float,
+        marker_positions: Dict[int, np.ndarray],
+        camera_params: List[Camera],
+    ):
         # Set up the ArUco dictionary
         aruco_dict_map = {
             "DICT_4X4_50": cv2.aruco.DICT_4X4_50,
@@ -65,17 +82,22 @@ class ArucoProcessor:
         self.marker_positions = marker_positions
         self.camera_params = camera_params
 
-    def detect_markers(self, cv_image):
+    def detect_markers(self, cv_image: cv2.Mat) -> Tuple[np.ndarray, np.ndarray]:
         corners, ids, _ = cv2.aruco.detectMarkers(
             cv_image, self.aruco_dict, parameters=self.aruco_params
         )
         return corners, ids
 
-    def estimate_pose(self, corners, ids, cam: Camera, image) -> Tuple[List[TagObservation], Set]:
-        observations = []
-        tags = set()
+    def estimate_tag_pose(
+        self, corners: np.ndarray, ids: np.ndarray, cam: Camera, image
+    ) -> Tuple[List[TagObservation], Set]:
+        observations: List[TagObservation] = []
+        tags: Set[int] = set()
 
         for i, marker_id in enumerate(ids.flatten()):
+            if marker_id not in self.marker_positions:
+                continue
+
             rvec, tvec, _ = cv2.aruco.estimatePoseSingleMarkers(
                 corners[i],
                 self.marker_length,
@@ -83,10 +105,10 @@ class ArucoProcessor:
                 cam.dist_coeffs,
             )
 
-            if marker_id not in self.marker_positions:
-                continue
+            cv2.drawFrameAxes(
+                image, cam.camera_matrix, cam.dist_coeffs, rvec, tvec, 0.1
+            )
 
-            cv2.drawFrameAxes(image, cam.camera_matrix, cam.dist_coeffs, rvec, tvec, 0.1)
             tags.add(marker_id)
             observations.append(
                 TagObservation(
@@ -101,69 +123,117 @@ class ArucoProcessor:
         return observations, tags
 
     @staticmethod
-    def reprojection_error(params, observations: List[TagObservation], marker_positions):
+    def reprojection_error(
+        params,
+        orientation: np.ndarray,
+        observations: List[TagObservation],
+        marker_positions: Dict[int, np.ndarray],
+    ) -> float:
         position = params[:3]
-        orientation = params[3:]
-        rotation_matrix = cv2.Rodrigues(orientation)[0]
+
         total_error = 0
 
         for obs in observations:
-            marker_id = obs.marker_id
-            corners = obs.corners
-            tvec = obs.tvec
-            rvec = obs.rvec
-            T_imu_cam = obs.cam.T_imu_cam
-            camera_matrix = obs.cam.camera_matrix
-            dist_coeffs = obs.cam.dist_coeffs
 
-            marker_global_position = marker_positions[marker_id]
-            rot = R.from_matrix(T_imu_cam[:3, :3]) * R.from_euler("xyz", orientation)
-            
-            # Project the transformed 3D marker position onto the 2D image plane
-            projected_points, _ = cv2.projectPoints(
-                marker_global_position,
-                rot.as_matrix(),
-                position + (T_imu_cam[:3, 3]),
-                camera_matrix,
-                dist_coeffs,
+            projected_points = ArucoProcessor.project_to_image(
+                position, orientation, marker_positions[obs.marker_id], obs.rvec[0][0], obs.cam
             )
-            
-            center = np.mean(corners, axis=1)
 
-            error = np.sum(
-                np.linalg.norm(center - projected_points.squeeze(), axis=1)
-            )
+            center = np.mean(obs.corners, axis=1)
+
+            error = np.sum(np.linalg.norm(center - projected_points.squeeze(), axis=1))
             total_error += error
 
         return total_error
 
-    def optimize_pose(self, initial_guess, observations: List[TagObservation]):
+    @staticmethod
+    def project_to_image(
+        position: np.ndarray,
+        orientation: np.ndarray,
+        global_position: np.ndarray,
+        rvec: np.ndarray,
+        cam: Camera,
+    ):
+        # x becomes becomes z (the further away from the camera)
+        # y becomes becomes x (the left-right position)
+        # z becomes becomes y (the up-down position)
+        coordinate_transform = np.array(
+            [
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+            ]
+        )
+
+        rotation_matrix = R.from_euler("xyz", orientation).as_matrix()
+        T_imu_cam = cam.T_imu_cam
+        R_imu_cam = T_imu_cam[:3, :3]
+        adjusted_position = ArucoProcessor.adjust_tag_postion(
+            global_position, rvec, 0.125, orientation, R_imu_cam
+        )
+
+        projected_points, _ = cv2.projectPoints(
+            adjusted_position,
+            coordinate_transform @ rotation_matrix @ R_imu_cam,
+            -(coordinate_transform @ rotation_matrix @ T_imu_cam[:3, 3] + position),
+            cam.camera_matrix,
+            cam.dist_coeffs,
+        )
+        return projected_points
+
+    @staticmethod
+    def adjust_tag_postion(global_coords, rvec, delta, orientation, R_imu_cam):
+        # from camera to global
+        coordinate_transform = np.linalg.inv(
+            np.array(
+                [
+                    [0.0, 1.0, 0.0],
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0, 0.0],
+                ]
+            )
+        )
+        R_tag_to_cam = R.from_rotvec(rvec).as_matrix()
+        R_cam_to_global = R.from_euler("xyz", orientation).as_matrix() @ R_imu_cam
+        v = np.array([0.0, 0, delta])  # in tag system
+        return global_coords + coordinate_transform @ R_cam_to_global @ R_tag_to_cam @ v
+
+    def optimize_pose(
+        self, initial_guess: np.ndarray, observations: List[TagObservation]
+    ) -> Tuple[np.ndarray, np.ndarray]:
         # Wrap reprojection_error in a lambda to pass observations
         result = least_squares(
-            ArucoProcessor.reprojection_error, 
-            initial_guess, 
+            ArucoProcessor.reprojection_error,
+            initial_guess,
+            method='dogbox',
             x_scale="jac",
-            kwargs={"observations": observations, "marker_positions": self.marker_positions},
+            kwargs={
+                "observations": observations,
+                "marker_positions": self.marker_positions,
+                "orientation": initial_guess[3:],
+            },
         )
         refined_position_orientation = result.x
         refined_position = refined_position_orientation[:3]
-        refined_orientation = refined_position_orientation[3:]
-        
+        refined_orientation = initial_guess[3:]
+
         return refined_position, refined_orientation
 
     @staticmethod
-    def quaternion_to_euler(quat):
+    def quaternion_to_euler(quat: Quaternion) -> np.ndarray:
         r = R.from_quat([quat.x, quat.y, quat.z, quat.w])
         return r.as_euler("xyz", degrees=False)
 
     @staticmethod
-    def euler_to_quaternion(euler):
+    def euler_to_quaternion(euler: np.ndarray) -> np.ndarray:
         r = R.from_euler("xyz", euler, degrees=False)
         quat = r.as_quat()
         return quat  # This returns [x, y, z, w]
 
     @staticmethod
-    def inverse_transform_position(position, offset_position, yaw):
+    def inverse_transform_position(
+        position: np.ndarray, offset_position: np.ndarray, yaw: float
+    ) -> np.ndarray:
         # Create the rotation matrix for the inverse yaw manually
         cos_yaw = np.cos(-yaw)
         sin_yaw = np.sin(-yaw)
@@ -180,7 +250,9 @@ class ArucoProcessor:
         return rotated_position
 
     @staticmethod
-    def get_global_position(tvec, rvec, T_imu_cam):
+    def get_global_position(
+        tvec: np.ndarray, rvec: np.ndarray, T_imu_cam: np.ndarray
+    ) -> np.ndarray:
         """
         This method returns the global position of a detected tag using the camera's extrinsics
         and intrinsics.
@@ -192,14 +264,19 @@ class ArucoProcessor:
         marker_cam_frame = np.dot(rotation_matrix, tvec.T).T
 
         # Convert to homogeneous coordinates
-        marker_cam_frame_homogeneous = np.hstack((marker_cam_frame[0], [1])).reshape(4, 1)
+        marker_cam_frame_homogeneous = np.hstack((marker_cam_frame[0], [1])).reshape(
+            4, 1
+        )
 
         # Transform the marker position to the global frame using the extrinsics
-        marker_global_homogeneous = np.dot(np.linalg.inv(T_imu_cam), marker_cam_frame_homogeneous)
-        
+        marker_global_homogeneous = np.dot(
+            np.linalg.inv(T_imu_cam), marker_cam_frame_homogeneous
+        )
+
         # Return the global position as a 3D vector
         marker_global_position = marker_global_homogeneous[:3].reshape(3)
         return marker_global_position
+
 
 class ArucoPoseEstimator(Node):
     def __init__(self):
@@ -278,7 +355,12 @@ class ArucoPoseEstimator(Node):
         )
 
         for i, cam in enumerate(self.cameras):
-            image_subs.append(Subscriber(self, Image, cam.topic))
+            self.get_logger().info(f"Camera {i}: {cam}")
+            image_subs.append(
+                Subscriber(
+                    self, CompressedImage if cam.compressed else Image, cam.topic
+                )
+            )
             self.get_logger().info(f"Subscribing to {cam.topic}")
             if self.publish_detections:
                 self.image_pubs.append(
@@ -292,7 +374,7 @@ class ArucoPoseEstimator(Node):
             camera_params=self.cameras,
         )
         # Use ApproximateTimeSynchronizer to synchronize image messages
-        self.ts = ApproximateTimeSynchronizer(image_subs, queue_size=10, slop=0.1)
+        self.ts = TimeSynchronizer(image_subs, queue_size=1)
         self.ts.registerCallback(self.image_callback)
 
         # Publisher
@@ -308,58 +390,69 @@ class ArucoPoseEstimator(Node):
 
         # Set up a timer to check callback frequency
         self.create_timer(0.1, self.check_callback_frequency)
-        self.create_timer(1.0, self.query_odom_transform)
         self.get_logger().info(f"Started watchdog")
 
+        # Set up timer to get position and yaw from /pose_transformer
         self.yaw = 0.0
         self.offset_position = np.array([0.0, 0.0, 0.0])
 
         self.client = self.create_client(
             GetParameters, "/pose_transformer/get_parameters"
         )
-        while not self.client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().warn("Waiting for /pose_transformer service...")
 
-    def load_marker_positions(self, filepath):
-        try:
-            with open(filepath, "r") as file:
-                positions = yaml.safe_load(file)["markers"]
-                # Convert to numpy arrays
-                for key in positions:
-                    positions[key] = np.array(positions[key])
-                return positions
-        except Exception as e:
-            self.get_logger().error(f"Failed to load marker positions: {e}")
-            return {}
+        self.create_timer(1.0, self.query_odom_transform)
 
     @staticmethod
-    def load_camera_parameters(filepath):
+    def load_marker_positions(filepath):
+        with open(filepath, "r") as file:
+            positions = yaml.safe_load(file)["markers"]
+            # Convert to numpy arrays
+            for key in positions:
+                positions[key] = np.array(positions[key])
+            return positions
+
+    @staticmethod
+    def load_camera_parameters(filepath) -> List[Camera]:
         with open(filepath, "r") as file:
             params = yaml.safe_load(file)
 
         cameras = []
         for cam_key, cam_params in params.items():
+            intrinsics = cam_params.get("intrinsics", [])
+            if len(intrinsics) != 4:
+                raise ValueError("Camera intrinsics must have 4 values")
+
+            fx, fy, cx, cy = intrinsics
+
             camera = Camera(
-               name=cam_key,
+                name=cam_key,
                 T_imu_cam=np.array(cam_params.get("T_imu_cam", [])),
-                camera_matrix=None,
+                camera_matrix=np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]]),
                 dist_coeffs=np.array(cam_params.get("distortion_coeffs", [])),
                 topic=cam_params.get("topic", ""),
+                compressed=cam_params.get("compressed", False),
             )
-            intrinsics = cam_params.get("intrinsics", [])
-            if len(intrinsics) == 4:
-                fx, fy, cx, cy = intrinsics
-                camera.camera_matrix = np.array(
-                    [[fx, 0, cx], [0, fy, cy], [0, 0, 1]]
-                )
             cameras.append(camera)
         return cameras
-
 
     def odom_callback(self, msg: Odometry):
         self.current_odom = msg
         self.get_logger().info(
             f"Received odometry: {msg.pose.pose.position}, {msg.pose.pose.orientation}"
+        )
+
+    def get_odom_orientation(self):
+        return ArucoProcessor.quaternion_to_euler(
+            self.current_odom.pose.pose.orientation
+        )
+        
+    def get_odom_position(self):
+        return np.array(
+            [
+                self.current_odom.pose.pose.position.x,
+                self.current_odom.pose.pose.position.y,
+                self.current_odom.pose.pose.position.z,
+            ]
         )
 
     def image_callback(self, *msgs):
@@ -372,18 +465,12 @@ class ArucoPoseEstimator(Node):
         self.last_callback_time = time.time()
 
         # Initial guess based on odometry
-        initial_position = np.array(
-            [
-                self.current_odom.pose.pose.position.x,
-                self.current_odom.pose.pose.position.y,
-                self.current_odom.pose.pose.position.z,
-            ]
-        )
-        self.get_logger().info(f"Current position: {initial_position}")
+        initial_position = self.get_odom_position()
 
         # Convert quaternion to Euler angles (roll, pitch, yaw) for initial orientation guess
-        orientation_quat = self.current_odom.pose.pose.orientation
-        initial_orientation = ArucoProcessor.quaternion_to_euler(orientation_quat)
+        initial_orientation = self.get_odom_orientation()
+
+        self.get_logger().info(f"Current position: {initial_position}")
         self.get_logger().info(f"Current orientation: {initial_orientation}")
 
         # Combine position and orientation into a single initial guess
@@ -394,34 +481,38 @@ class ArucoPoseEstimator(Node):
         tags = set()
 
         for j, (msg, cam) in enumerate(zip(msgs, self.cameras)):
-            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            if cam.compressed:
+                cv_image = self.bridge.compressed_imgmsg_to_cv2(
+                    msg, desired_encoding="bgr8"
+                )
+            else:
+                cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+
             corners, ids = self.processor.detect_markers(cv_image)
+
             if ids is None:
                 self.get_logger().warn("No markers detected!")
+                if self.publish_detections:
+                    cv2.putText(
+                        cv_image,
+                        "No markers detected",
+                        (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1,
+                        (0, 0, 255),
+                        2,
+                    )
+                    aruco_msg = self.bridge.cv2_to_imgmsg(cv_image, encoding="bgr8")
+                    self.image_pubs[j].publish(aruco_msg)
                 continue
 
-            cam_observations, cam_tags = self.processor.estimate_pose(corners, ids, cam, cv_image)
-            for obs in cam_observations:
-                tvec = ArucoProcessor.get_global_position(obs.tvec[0], obs.rvec[0][0], obs.cam.T_imu_cam)
-                tvec = obs.tvec[0][0]
+            cam_observations, cam_tags = self.processor.estimate_tag_pose(
+                corners, ids, cam, cv_image
+            )
 
-                quat = R.from_rotvec(obs.rvec[0][0]).as_quat()
-                ypr = R.from_rotvec(obs.rvec[0][0]).as_euler("xyz", degrees=False)
-
-                self.get_logger().info(
-                    f"Detected marker {obs.marker_id} at {tvec}, {ypr}"
-                )
-                self.marker_pubs[obs.marker_id].publish(
-                    PoseStamped(
-                        pose=Pose(
-                            position=Point(x=tvec[0], y=tvec[1], z=tvec[2]),
-                            orientation=Quaternion(
-                                x=quat[0], y=quat[1], z=quat[2], w=quat[3]
-                            ),
-                        ),
-                        header=Header(frame_id="global", stamp=msg.header.stamp),
-                    )
-                )
+            # Extract the position and orientation of each detected marker
+            if self.publish_detections:
+                self.publish_observations(cam_observations, msg.header)
 
             observations.extend(cam_observations)
             tags.update(cam_tags)
@@ -430,20 +521,82 @@ class ArucoPoseEstimator(Node):
                 cv2.aruco.drawDetectedMarkers(cv_image, corners, ids)
                 aruco_msg = self.bridge.cv2_to_imgmsg(cv_image, header=msg.header)
                 self.image_pubs[j].publish(aruco_msg)
-
         self.count_pub.publish(Int32(data=len(tags)))
+
         if len(observations) == 0:
             self.get_logger().warn("No markers detected!")
             return
+
         t0 = time.time()
         refined_position, refined_orientation = self.processor.optimize_pose(
             initial_guess, observations
         )
         self.get_logger().info(f"Optimization took {time.time() - t0:.2f} seconds")
-        
-        self.get_logger().info(f"Refined position: {refined_position}, orientation: {refined_orientation}")
+
+        self.get_logger().info(
+            f"Odom position: {self.get_odom_position()}, orientation: {self.get_odom_orientation()}"
+        )
+
+        self.get_logger().info(
+            f"Refined position: {refined_position}, orientation: {refined_orientation}"
+        )
+        for obs in observations[:1]:
+            projected_points = ArucoProcessor.project_to_image(
+                    refined_position,
+                    refined_orientation,
+                    self.marker_positions[obs.marker_id],
+                    obs.rvec[0][0],
+                    obs.cam,
+            )
+            self.get_logger().info(f"Projected points (refined): {projected_points}")
+
+
+
 
         self.update_pose(refined_position, refined_orientation)
+
+    def publish_observations(self, observations: List[TagObservation], header):
+        for obs in observations:
+            tvec = ArucoProcessor.get_global_position(
+                obs.tvec[0], obs.rvec[0][0], obs.cam.T_imu_cam
+            )
+            tvec = obs.tvec[0][0]
+
+            quat = R.from_rotvec(obs.rvec[0][0]).as_quat()
+            ypr = R.from_rotvec(obs.rvec[0][0]).as_euler("xyz", degrees=False)
+
+            self.get_logger().info(f"Detected marker {obs.marker_id} at {tvec}, {ypr}")
+            adjusted_position = ArucoProcessor.adjust_tag_postion(
+                self.marker_positions[obs.marker_id],
+                obs.rvec[0][0],
+                0.125,
+                self.get_odom_orientation(),
+                obs.cam.T_imu_cam[:3, :3],
+            )
+            self.get_logger().info(f"Adjusted position [{obs.marker_id}]: {adjusted_position}")
+            
+            projected_points = ArucoProcessor.project_to_image(
+                    self.get_odom_position(),
+                    self.get_odom_orientation(),
+                    self.marker_positions[obs.marker_id],
+                    obs.rvec[0][0],
+                    obs.cam,
+            )
+
+            self.get_logger().info(f"Projected points: {projected_points}")
+            self.get_logger().info(f"Center: {np.mean(obs.corners, axis=1)}")
+
+            self.marker_pubs[obs.marker_id].publish(
+                PoseStamped(
+                    pose=Pose(
+                        position=Point(x=tvec[0], y=tvec[1], z=tvec[2]),
+                        orientation=Quaternion(
+                            x=quat[0], y=quat[1], z=quat[2], w=quat[3]
+                        ),
+                    ),
+                    header=Header(frame_id="global", stamp=header.stamp),
+                )
+            )
 
     def check_callback_frequency(self):
         current_time = time.time()
@@ -477,7 +630,7 @@ class ArucoPoseEstimator(Node):
         self.pose_pub.publish(pose_msg)
 
     def query_odom_transform(self):
-        if not self.client.wait_for_service(timeout_sec=1.0):
+        if not self.client.wait_for_service(timeout_sec=0.1):
             self.get_logger().warn("The /pose_transformer service is not available.")
             return None, None
         else:
