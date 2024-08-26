@@ -9,7 +9,7 @@ import numpy as np
 
 from scipy.spatial.transform import Rotation as R
 import cv2
-from scipy.optimize import least_squares
+from scipy.optimize import least_squares, minimize
 from std_msgs.msg import Int32, Header
 from geometry_msgs.msg import (
     PoseWithCovarianceStamped,
@@ -137,7 +137,6 @@ class ArucoProcessor:
     ) -> float:
         position = params[:3]
         orientation = params[3:]
-        position[2] = 0
 
         total_error = 0
 
@@ -149,7 +148,7 @@ class ArucoProcessor:
                 R_imu_cam=obs.cam.T_imu_cam[:3, :3],
             )
             total_error += np.linalg.norm(
-                marker_position - marker_positions[obs.marker_id]
+                marker_position[:2] - marker_positions[obs.marker_id][:2]
             )
 
         return total_error
@@ -266,20 +265,26 @@ class ArucoProcessor:
         marker_positions: Dict[int, np.ndarray],
     ) -> Tuple[np.ndarray, np.ndarray]:
         # Wrap reprojection_error in a lambda to pass observations
-        result = least_squares(
+        result = minimize(
             error_function,
             initial_guess,
-            method="dogbox",
-            x_scale="jac",
-            kwargs={
-                "observations": observations,
-                "marker_positions": marker_positions,
-                "orientation": initial_guess[3:],
-            },
+            method='Nelder-Mead',
+            # method="dogbox",
+            # x_scale="jac",
+            # max_nfev=10000,
+            args=(initial_guess[3:], observations, marker_positions),
+            # kwargs={
+            #     "observations": observations,
+            #     "marker_positions": marker_positions,
+            #     "orientation": initial_guess[3:],
+            # },
         )
+        
+        print(f"Optimization result: {result}") 
+
         refined_position_orientation = result.x
         refined_position = refined_position_orientation[:3]
-        refined_orientation = initial_guess[3:]
+        refined_orientation = refined_position_orientation[3:]
 
         return refined_position, refined_orientation
 
