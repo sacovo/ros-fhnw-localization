@@ -1,4 +1,7 @@
 from typing import Dict, List, Set, Tuple
+import pstats
+import io
+import cProfile
 import time
 import yaml
 from rclpy.executors import MultiThreadedExecutor
@@ -168,12 +171,12 @@ class ArucoProcessor:
         rotation_matrix = R.from_euler("xyz", orientation).as_matrix()
         T_imu_cam = cam.T_imu_cam
         R_imu_cam = T_imu_cam[:3, :3]
-        adjusted_position = ArucoProcessor.adjust_tag_postion(
-            global_position, rvec, 0.125, orientation, R_imu_cam
-        )
+        # adjusted_position = ArucoProcessor.adjust_tag_postion(
+        #     global_position, rvec, 0.125, orientation, R_imu_cam
+        # )
 
         projected_points, _ = cv2.projectPoints(
-            adjusted_position,
+            global_position,
             coordinate_transform @ rotation_matrix @ R_imu_cam,
             -(coordinate_transform @ rotation_matrix @ T_imu_cam[:3, 3] + position),
             cam.camera_matrix,
@@ -456,10 +459,13 @@ class ArucoPoseEstimator(Node):
         )
 
     def image_callback(self, *msgs):
+
         if self.current_odom is None:
             self.get_logger().warn("Received image but have no odometry!")
             return
 
+        pr = cProfile.Profile()
+        pr.enable()  # Start profiling
         self.get_logger().info(f"Received image")
         # Update the last callback time
         self.last_callback_time = time.time()
@@ -525,6 +531,8 @@ class ArucoPoseEstimator(Node):
 
         if len(observations) == 0:
             self.get_logger().warn("No markers detected!")
+
+            pr.disable()  # Stop profiling
             return
 
         t0 = time.time()
@@ -551,7 +559,14 @@ class ArucoPoseEstimator(Node):
             self.get_logger().info(f"Projected points (refined): {projected_points}")
 
 
+        pr.disable()  # Stop profiling
 
+        # Print profiling results
+        s = io.StringIO()
+        sortby = pstats.SortKey.CUMULATIVE
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print(s.getvalue())
 
         self.update_pose(refined_position, refined_orientation)
 
@@ -659,13 +674,17 @@ def main(args=None):
     # Use MultiThreadedExecutor to handle multiple callbacks in parallel
     executor = MultiThreadedExecutor()
     executor.add_node(node)
+    
 
     try:
         executor.spin()
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
+    except:
+        pass    
+
+
+    node.destroy_node()
     rclpy.shutdown()
+
 
 
 if __name__ == "__main__":

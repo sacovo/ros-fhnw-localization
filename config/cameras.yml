@@ -21,7 +21,7 @@ cam0:
   distortion_model: radtan
   intrinsics: [522.5159149961529, 522.9380495250383, 654.5163410138881, 352.57827647130296]
   resolution: [1280, 720]
-  topic: /camera_a/image_raw/compressed
+  topic: /zed/image_raw/compressed
   timeoffset: -0.03
   compressed: true
 
