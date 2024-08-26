@@ -1,4 +1,5 @@
 from typing import Callable, Dict, List, Set, Tuple
+from numba import jit
 import pstats
 import io
 import cProfile
@@ -31,6 +32,16 @@ from rcl_interfaces.srv import GetParameters
 
 from dataclasses import dataclass
 
+COORDINATE_TRANSFORM = np.linalg.inv(
+            np.array(
+                [
+                    [0.0, 1.0, 0.0],
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0, 0.0],
+                ]
+            )
+        )
+ 
 
 @dataclass
 class Camera:
@@ -136,14 +147,15 @@ class ArucoProcessor:
         marker_positions: Dict[int, np.ndarray],
     ) -> float:
         position = params[:3]
-        orientation = params[3:]
+        # orientation = params[3:]
 
         total_error = 0
+        rotation_matrix = R.from_euler("xyz", orientation).as_matrix()
 
         for obs in observations:
             marker_position = ArucoProcessor.get_marker_position(
                 position=position,
-                orientation=orientation,
+                orientation=rotation_matrix,
                 tvec=obs.tvec,
                 R_imu_cam=obs.cam.T_imu_cam[:3, :3],
             )
@@ -152,30 +164,26 @@ class ArucoProcessor:
             )
 
         return total_error
+    
 
     @staticmethod
+    @jit
     def get_marker_position(
         position: np.ndarray,
         orientation: np.ndarray,
         tvec: np.ndarray,
         R_imu_cam: np.ndarray,
     ) -> np.ndarray:
-        coordinate_transform = np.linalg.inv(
-            np.array(
-                [
-                    [0.0, 1.0, 0.0],
-                    [0.0, 0.0, 1.0],
-                    [1.0, 0.0, 0.0],
-                ]
-            )
-        )
-        pos = (
+        return (
             position
-            + R.from_euler("xyz", orientation).as_matrix()
-            @ coordinate_transform
+            + orientation
+            @ COORDINATE_TRANSFORM
             @ tvec.reshape(3)
         )
-        return pos
+        
+    @staticmethod
+    def euler_to_rotmat(euler: np.ndarray) -> np.ndarray:
+        return R.from_euler("xyz", euler).as_matrix()
 
     @staticmethod
     def reprojection_error(
@@ -189,11 +197,12 @@ class ArucoProcessor:
 
         total_error = 0
 
-        for obs in observations:
+        rotation_matrix = R.from_euler("xyz", orientation).as_matrix()
 
+        for obs in observations:
             projected_points = ArucoProcessor.project_to_image(
                 position,
-                orientation,
+                rotation_matrix,
                 marker_positions[obs.marker_id],
                 obs.rvec[0][0],
                 obs.cam,
@@ -209,7 +218,7 @@ class ArucoProcessor:
     @staticmethod
     def project_to_image(
         position: np.ndarray,
-        orientation: np.ndarray,
+        rotation_matrix: np.ndarray,
         global_position: np.ndarray,
         rvec: np.ndarray,
         cam: Camera,
@@ -225,7 +234,6 @@ class ArucoProcessor:
             ]
         )
 
-        rotation_matrix = R.from_euler("xyz", orientation).as_matrix()
         T_imu_cam = cam.T_imu_cam
         R_imu_cam = T_imu_cam[:3, :3]
         # adjusted_position = ArucoProcessor.adjust_tag_postion(
@@ -265,26 +273,37 @@ class ArucoProcessor:
         marker_positions: Dict[int, np.ndarray],
     ) -> Tuple[np.ndarray, np.ndarray]:
         # Wrap reprojection_error in a lambda to pass observations
-        result = minimize(
+        # print(f"Initial guess: {initial_guess}")
+        # print(f"Observations: {observations}")
+        # print(f"Marker positions: {marker_positions}")
+        # print(f"Error function: {error_function}")
+
+        # result = minimize(
+        #     error_function,
+        #     initial_guess,
+        #     method='Nelder-Mead',
+        #     args=(initial_guess[3:], observations, marker_positions),
+        # )
+        result = least_squares(
             error_function,
             initial_guess,
-            method='Nelder-Mead',
-            # method="dogbox",
-            # x_scale="jac",
-            # max_nfev=10000,
-            args=(initial_guess[3:], observations, marker_positions),
-            # kwargs={
-            #     "observations": observations,
-            #     "marker_positions": marker_positions,
-            #     "orientation": initial_guess[3:],
-            # },
+            method="dogbox",
+            x_scale="jac",
+            max_nfev=10000,
+            kwargs={
+                "observations": observations,
+                "marker_positions": marker_positions,
+                "orientation": initial_guess[3:],
+            },
         )
         
-        print(f"Optimization result: {result}") 
+        if not result.success:
+            print(f"Optimization failed: {result.message}")
+        print(result)
 
         refined_position_orientation = result.x
         refined_position = refined_position_orientation[:3]
-        refined_orientation = refined_position_orientation[3:]
+        refined_orientation = initial_guess[3:]
 
         return refined_position, refined_orientation
 
@@ -456,8 +475,8 @@ class ArucoPoseEstimator(Node):
         self.count_pub = self.create_publisher(Int32, "/aruco/count", 10)
 
         self.current_odom = Odometry()
-        self.current_odom.pose.pose.position.x = 5.0
-        self.current_odom.pose.pose.position.y = -2.0
+        # self.current_odom.pose.pose.position.x = 5.0
+        # self.current_odom.pose.pose.position.y = -2.0
 
         self.last_callback_time = time.time()
 
@@ -596,7 +615,6 @@ class ArucoPoseEstimator(Node):
                 aruco_msg = self.bridge.cv2_to_imgmsg(cv_image, header=msg.header)
                 self.image_pubs[j].publish(aruco_msg)
         self.count_pub.publish(Int32(data=len(tags)))
-        
 
         if len(observations) < 1:
             self.get_logger().warn("No markers detected!")
@@ -624,7 +642,14 @@ class ArucoPoseEstimator(Node):
                 obs.rvec[0][0],
                 obs.cam,
             )
-            self.get_logger().info(f"Projected points (refined): {projected_points}")
+            self.get_logger().info(f"Projected points [{obs.marker_id}] (refined): {projected_points}")
+            marker_position = ArucoProcessor.get_marker_position(
+                refined_position,
+                ArucoProcessor.euler_to_rotmat(refined_orientation),
+                obs.tvec,
+                obs.cam.T_imu_cam[:3, :3],
+            )
+            self.get_logger().info(f"Marker position [{obs.marker_id}]: {marker_position}")
 
         self.update_pose(refined_position, refined_orientation)
 
@@ -660,7 +685,7 @@ class ArucoPoseEstimator(Node):
             self.get_logger().info(f"Projected points: {projected_points}")
             self.get_logger().info(f"Center: {np.mean(obs.corners, axis=1)}")
             
-            detected_points = ArucoProcessor.get_marker_position(self.get_odom_position(), self.get_odom_orientation(), obs.tvec, obs.cam.T_imu_cam[:3, :3])
+            detected_points = ArucoProcessor.get_marker_position(self.get_odom_position(), ArucoProcessor.euler_to_rotmat(self.get_odom_orientation()), obs.tvec, obs.cam.T_imu_cam[:3, :3])
             self.get_logger().info(f"Detected points [{obs.marker_id}]: {detected_points}")
 
 

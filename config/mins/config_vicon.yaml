@@ -1,7 +1,7 @@
 %YAML:1.0 # need to specify the file type at the top!
 
 vicon:
-  enabled: false
+  enabled: true
   max_n: 1
   noise_o: 0.01
   noise_p: 0.01
@@ -13,12 +13,12 @@ vicon:
   chi2_mult: 1
 
 vicon0:
-  topic: /odomimu
+  topic: /pose_with_covariance
   timeoffset: 0.0
   T_imu_vicon:
-    - [0.0,-1.0, 0.0, 1.0]
-    - [1.0, 0.0, 0.0, 1.0]
-    - [0.0, 0.0, 1.0, 1.0]
+    - [1.0, 0.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0, 0.0]
+    - [0.0, 0.0, 1.0, 0.0]
     - [0.0, 0.0, 0.0, 1.0]
   topic: "/odom"
   with_cov: false

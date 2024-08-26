@@ -155,8 +155,5 @@ def test_coordinate_transform():
     )
 
     x = np.linalg.inv(cam_to_base) @ target
-    print(x)
 
     assert np.allclose(cam_to_base @ x, target)
-
-    assert False

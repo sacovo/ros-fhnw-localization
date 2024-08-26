@@ -95,7 +95,7 @@ public:
                 RCLCPP_INFO(this->get_logger(), "Yaw was set: %.2f", yaw);
 
                 // Need to reset this as well, since it depends on our actual position
-                set_initial_position(this->get_parameter("initial_position"));
+                // set_initial_position(this->get_parameter("initial_position"));
             }
         }
     }
@@ -225,10 +225,15 @@ public:
 
         // Rotate position
         geometry_msgs::msg::Point position = pose.position;
+
+        RCLCPP_INFO(this->get_logger(), "Initial position: %f, %f, %f", position.x, position.y, position.z);
         transform_position(position);
+        RCLCPP_INFO(this->get_logger(), "Output position: %f, %f, %f", position.x, position.y, position.z);
 
         geometry_msgs::msg::Quaternion orientation = pose.orientation;
+        RCLCPP_INFO(this->get_logger(), "Initial orientation: %f, %f, %f, %f", orientation.x, orientation.y, orientation.z, orientation.w);
         transform_orientation(orientation);
+        RCLCPP_INFO(this->get_logger(), "Output orientation: %f, %f, %f, %f", orientation.x, orientation.y, orientation.z, orientation.w);
 
         // Publish transformed odometry
         nav_msgs::msg::Odometry transformed_odom;
@@ -239,6 +244,7 @@ public:
         transformed_odom.twist.twist = twist;
 
         pub_odom->publish(transformed_odom);
+
     }
 
     void callback_pose(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)
