@@ -5,7 +5,7 @@
     height_over_ground: 0.0
     marker_length: 0.14
     marker_positions_file: config/markers_fh.yml
-    odom_topic: /odom
+    odom_topic: /rover/odom
     pose_pub_topic: /pose_with_covariance
     publish_detections: true
     use_sim_time: false

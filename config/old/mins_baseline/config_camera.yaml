@@ -15,7 +15,7 @@ cam:
   min_px_dist: 10
   knn: 0.70
   downsample: false
-  histogram_method: "HISTOGRAM" # NONE, HISTOGRAM, CLAHE
+  histogram_method: "NONE" # NONE, HISTOGRAM, CLAHE
   max_slam: 120
   max_msckf: 120
   feat_rep: "GLOBAL_3D"

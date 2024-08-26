@@ -1,4 +1,4 @@
-from typing import Dict, List, Set, Tuple
+from typing import Callable, Dict, List, Set, Tuple
 import pstats
 import io
 import cProfile
@@ -25,9 +25,6 @@ import rclpy
 from rclpy.node import Node
 from message_filters import ApproximateTimeSynchronizer, Subscriber, TimeSynchronizer
 import time
-
-import tf2_ros
-import tf_transformations
 
 from rclpy.parameter import Parameter
 from rcl_interfaces.srv import GetParameters
@@ -69,6 +66,7 @@ class ArucoProcessor:
         marker_length: float,
         marker_positions: Dict[int, np.ndarray],
         camera_params: List[Camera],
+        error_function="reprojection",
     ):
         # Set up the ArUco dictionary
         aruco_dict_map = {
@@ -84,6 +82,11 @@ class ArucoProcessor:
         self.marker_length = marker_length
         self.marker_positions = marker_positions
         self.camera_params = camera_params
+        self.error_function = (
+            ArucoProcessor.reprojection_error
+            if error_function == "reprojection"
+            else ArucoProcessor.position_error
+        )
 
     def detect_markers(self, cv_image: cv2.Mat) -> Tuple[np.ndarray, np.ndarray]:
         corners, ids, _ = cv2.aruco.detectMarkers(
@@ -126,6 +129,56 @@ class ArucoProcessor:
         return observations, tags
 
     @staticmethod
+    def position_error(
+        params,
+        orientation: np.ndarray,
+        observations: List[TagObservation],
+        marker_positions: Dict[int, np.ndarray],
+    ) -> float:
+        position = params[:3]
+        orientation = params[3:]
+        position[2] = 0
+
+        total_error = 0
+
+        for obs in observations:
+            marker_position = ArucoProcessor.get_marker_position(
+                position=position,
+                orientation=orientation,
+                tvec=obs.tvec,
+                R_imu_cam=obs.cam.T_imu_cam[:3, :3],
+            )
+            total_error += np.linalg.norm(
+                marker_position - marker_positions[obs.marker_id]
+            )
+
+        return total_error
+
+    @staticmethod
+    def get_marker_position(
+        position: np.ndarray,
+        orientation: np.ndarray,
+        tvec: np.ndarray,
+        R_imu_cam: np.ndarray,
+    ) -> np.ndarray:
+        coordinate_transform = np.linalg.inv(
+            np.array(
+                [
+                    [0.0, 1.0, 0.0],
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0, 0.0],
+                ]
+            )
+        )
+        pos = (
+            position
+            + R.from_euler("xyz", orientation).as_matrix()
+            @ coordinate_transform
+            @ tvec.reshape(3)
+        )
+        return pos
+
+    @staticmethod
     def reprojection_error(
         params,
         orientation: np.ndarray,
@@ -133,19 +186,24 @@ class ArucoProcessor:
         marker_positions: Dict[int, np.ndarray],
     ) -> float:
         position = params[:3]
+        position[2] = 0
 
         total_error = 0
 
         for obs in observations:
 
             projected_points = ArucoProcessor.project_to_image(
-                position, orientation, marker_positions[obs.marker_id], obs.rvec[0][0], obs.cam
+                position,
+                orientation,
+                marker_positions[obs.marker_id],
+                obs.rvec[0][0],
+                obs.cam,
             )
 
             center = np.mean(obs.corners, axis=1)
 
-            error = np.sum(np.linalg.norm(center - projected_points.squeeze(), axis=1))
-            total_error += error
+            # error = np.sum(np.linalg.norm(center - projected_points.squeeze(), axis=1))
+            total_error += np.abs(center[0][0] - projected_points[0][0][0])
 
         return total_error
 
@@ -201,18 +259,21 @@ class ArucoProcessor:
         v = np.array([0.0, 0, delta])  # in tag system
         return global_coords + coordinate_transform @ R_cam_to_global @ R_tag_to_cam @ v
 
+    @staticmethod
     def optimize_pose(
-        self, initial_guess: np.ndarray, observations: List[TagObservation]
+        initial_guess: np.ndarray, observations: List[TagObservation],
+        error_function: Callable,
+        marker_positions: Dict[int, np.ndarray],
     ) -> Tuple[np.ndarray, np.ndarray]:
         # Wrap reprojection_error in a lambda to pass observations
         result = least_squares(
-            ArucoProcessor.reprojection_error,
+            error_function,
             initial_guess,
-            method='dogbox',
+            method="dogbox",
             x_scale="jac",
             kwargs={
                 "observations": observations,
-                "marker_positions": self.marker_positions,
+                "marker_positions": marker_positions,
                 "orientation": initial_guess[3:],
             },
         )
@@ -375,6 +436,7 @@ class ArucoPoseEstimator(Node):
             marker_length=self.marker_length,
             marker_positions=self.marker_positions,
             camera_params=self.cameras,
+            error_function="position",
         )
         # Use ApproximateTimeSynchronizer to synchronize image messages
         self.ts = TimeSynchronizer(image_subs, queue_size=1)
@@ -389,10 +451,13 @@ class ArucoPoseEstimator(Node):
         self.count_pub = self.create_publisher(Int32, "/aruco/count", 10)
 
         self.current_odom = Odometry()
+        self.current_odom.pose.pose.position.x = 5.0
+        self.current_odom.pose.pose.position.y = -2.0
+
         self.last_callback_time = time.time()
 
         # Set up a timer to check callback frequency
-        self.create_timer(0.1, self.check_callback_frequency)
+        # self.create_timer(0.1, self.check_callback_frequency)
         self.get_logger().info(f"Started watchdog")
 
         # Set up timer to get position and yaw from /pose_transformer
@@ -403,7 +468,7 @@ class ArucoPoseEstimator(Node):
             GetParameters, "/pose_transformer/get_parameters"
         )
 
-        self.create_timer(1.0, self.query_odom_transform)
+        # self.create_timer(1.0, self.query_odom_transform)
 
     @staticmethod
     def load_marker_positions(filepath):
@@ -448,7 +513,7 @@ class ArucoPoseEstimator(Node):
         return ArucoProcessor.quaternion_to_euler(
             self.current_odom.pose.pose.orientation
         )
-        
+
     def get_odom_position(self):
         return np.array(
             [
@@ -464,8 +529,6 @@ class ArucoPoseEstimator(Node):
             self.get_logger().warn("Received image but have no odometry!")
             return
 
-        pr = cProfile.Profile()
-        pr.enable()  # Start profiling
         self.get_logger().info(f"Received image")
         # Update the last callback time
         self.last_callback_time = time.time()
@@ -528,16 +591,16 @@ class ArucoPoseEstimator(Node):
                 aruco_msg = self.bridge.cv2_to_imgmsg(cv_image, header=msg.header)
                 self.image_pubs[j].publish(aruco_msg)
         self.count_pub.publish(Int32(data=len(tags)))
+        
 
-        if len(observations) == 0:
+        if len(observations) < 1:
             self.get_logger().warn("No markers detected!")
 
-            pr.disable()  # Stop profiling
             return
 
         t0 = time.time()
-        refined_position, refined_orientation = self.processor.optimize_pose(
-            initial_guess, observations
+        refined_position, refined_orientation = ArucoProcessor.optimize_pose(
+            initial_guess, observations, self.processor.error_function, self.marker_positions
         )
         self.get_logger().info(f"Optimization took {time.time() - t0:.2f} seconds")
 
@@ -550,23 +613,13 @@ class ArucoPoseEstimator(Node):
         )
         for obs in observations[:1]:
             projected_points = ArucoProcessor.project_to_image(
-                    refined_position,
-                    refined_orientation,
-                    self.marker_positions[obs.marker_id],
-                    obs.rvec[0][0],
-                    obs.cam,
+                refined_position,
+                refined_orientation,
+                self.marker_positions[obs.marker_id],
+                obs.rvec[0][0],
+                obs.cam,
             )
             self.get_logger().info(f"Projected points (refined): {projected_points}")
-
-
-        pr.disable()  # Stop profiling
-
-        # Print profiling results
-        s = io.StringIO()
-        sortby = pstats.SortKey.CUMULATIVE
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        print(s.getvalue())
 
         self.update_pose(refined_position, refined_orientation)
 
@@ -588,18 +641,23 @@ class ArucoPoseEstimator(Node):
                 self.get_odom_orientation(),
                 obs.cam.T_imu_cam[:3, :3],
             )
-            self.get_logger().info(f"Adjusted position [{obs.marker_id}]: {adjusted_position}")
-            
-            projected_points = ArucoProcessor.project_to_image(
-                    self.get_odom_position(),
-                    self.get_odom_orientation(),
-                    self.marker_positions[obs.marker_id],
-                    obs.rvec[0][0],
-                    obs.cam,
+            self.get_logger().info(
+                f"Adjusted position [{obs.marker_id}]: {adjusted_position}"
             )
 
+            projected_points = ArucoProcessor.project_to_image(
+                self.get_odom_position(),
+                self.get_odom_orientation(),
+                self.marker_positions[obs.marker_id],
+                obs.rvec[0][0],
+                obs.cam,
+            )
             self.get_logger().info(f"Projected points: {projected_points}")
             self.get_logger().info(f"Center: {np.mean(obs.corners, axis=1)}")
+            
+            detected_points = ArucoProcessor.get_marker_position(self.get_odom_position(), self.get_odom_orientation(), obs.tvec, obs.cam.T_imu_cam[:3, :3])
+            self.get_logger().info(f"Detected points [{obs.marker_id}]: {detected_points}")
+
 
             self.marker_pubs[obs.marker_id].publish(
                 PoseStamped(
@@ -674,17 +732,11 @@ def main(args=None):
     # Use MultiThreadedExecutor to handle multiple callbacks in parallel
     executor = MultiThreadedExecutor()
     executor.add_node(node)
-    
 
-    try:
-        executor.spin()
-    except:
-        pass    
-
+    executor.spin()
 
     node.destroy_node()
     rclpy.shutdown()
-
 
 
 if __name__ == "__main__":
