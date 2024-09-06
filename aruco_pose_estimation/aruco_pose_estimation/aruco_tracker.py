@@ -13,13 +13,13 @@ import cv2
 from scipy.optimize import least_squares, minimize
 from std_msgs.msg import Int32, Header
 from geometry_msgs.msg import (
-    PoseWithCovarianceStamped,
     Pose,
     PoseStamped,
     Point,
     Quaternion,
 )
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import Odometry, Path
+from geometry_msgs.msg import Point32, Quaternion
 from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge
 import rclpy
@@ -35,9 +35,9 @@ from dataclasses import dataclass
 COORDINATE_TRANSFORM = np.linalg.inv(
             np.array(
                 [
-                    [0.0, 1.0, 0.0],
-                    [0.0, 0.0, 1.0],
                     [1.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0],
+                    [0.0, 1.0, 0.0],
                 ]
             )
         )
@@ -89,7 +89,9 @@ class ArucoProcessor:
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(
             aruco_dict_map[aruco_dict_name]
         )
-        self.aruco_params = cv2.aruco.DetectorParameters()
+        self.aruco_params = cv2.aruco.DetectorParameters(
+
+        )
         self.marker_length = marker_length
         self.marker_positions = marker_positions
         self.camera_params = camera_params
@@ -165,6 +167,16 @@ class ArucoProcessor:
 
         return total_error
     
+    
+    @staticmethod
+    def position_from_marker_poses(
+            orientaiton: np.ndarray,
+            observations: List[TagObservation],
+            marker_positions: Dict[int, np.ndarray]
+    ):
+        for observation in observations:
+            pass
+        pass
 
     @staticmethod
     @jit
@@ -308,9 +320,9 @@ class ArucoProcessor:
         return refined_position, refined_orientation
 
     @staticmethod
-    def quaternion_to_euler(quat: Quaternion) -> np.ndarray:
+    def quaternion_to_euler(quat: Quaternion, degrees=False) -> np.ndarray:
         r = R.from_quat([quat.x, quat.y, quat.z, quat.w])
-        return r.as_euler("xyz", degrees=False)
+        return r.as_euler("xyz", degrees=degrees)
 
     @staticmethod
     def euler_to_quaternion(euler: np.ndarray) -> np.ndarray:
@@ -323,8 +335,8 @@ class ArucoProcessor:
         position: np.ndarray, offset_position: np.ndarray, yaw: float
     ) -> np.ndarray:
         # Create the rotation matrix for the inverse yaw manually
-        cos_yaw = np.cos(-yaw)
-        sin_yaw = np.sin(-yaw)
+        cos_yaw = np.cos(np.deg2rad(-yaw))
+        sin_yaw = np.sin(np.deg2rad(-yaw))
         rotation_matrix = np.array(
             [[cos_yaw, -sin_yaw, 0], [sin_yaw, cos_yaw, 0], [0, 0, 1]]
         )
@@ -430,6 +442,8 @@ class ArucoPoseEstimator(Node):
             Odometry, odom_topic, self.odom_callback, 10
         )
         self.get_logger().info(f"Subscribed to {odom_topic}")
+        
+        self.path = []
 
         # Set up message filters for synchronizing multiple image topics
         self.bridge = CvBridge()
@@ -468,7 +482,10 @@ class ArucoPoseEstimator(Node):
 
         # Publisher
         self.pose_pub = self.create_publisher(
-            PoseWithCovarianceStamped, pose_pub_topic, 10
+            PoseStamped, pose_pub_topic, 10
+        )
+        self.pose_pub_orig = self.create_publisher(
+            PoseStamped, pose_pub_topic + "_raw", 10,
         )
         self.get_logger().info(f"Publishing to {pose_pub_topic}")
 
@@ -487,12 +504,26 @@ class ArucoPoseEstimator(Node):
         # Set up timer to get position and yaw from /pose_transformer
         self.yaw = 0.0
         self.offset_position = np.array([0.0, 0.0, 0.0])
+        self.offset_orientaiton = R.identity()
 
         self.client = self.create_client(
             GetParameters, "/pose_transformer/get_parameters"
         )
+        
+        self.offset_pos_listener = self.create_subscription(Point32, '/offset/position', self._offset_position_callback, 10)
+        self.offset_ori_listener = self.create_subscription(Quaternion, '/offset/orientation', self._offset_orientation_callback, 10)
 
-        # self.create_timer(1.0, self.query_odom_transform)
+        self.create_timer(1.0, self.query_odom_transform)
+        self.now = None
+        
+    def _offset_position_callback(self, msg: Point32):
+        self.offset_position = np.array([msg.x, msg.y, msg.z])
+    
+    def _offset_orientation_callback(self, msg: Quaternion):
+        self.offset_orientaiton = R.from_quat(
+            [msg.z, msg.x, msg.y, msg.z],
+            scalar_first=True,
+        ).inv()
 
     @staticmethod
     def load_marker_positions(filepath):
@@ -530,8 +561,9 @@ class ArucoPoseEstimator(Node):
     def odom_callback(self, msg: Odometry):
         self.current_odom = msg
         self.get_logger().info(
-            f"Received odometry: {msg.pose.pose.position}, {msg.pose.pose.orientation}"
+            f"Received odometry: {msg.pose.pose.position}, {ArucoProcessor.quaternion_to_euler(msg.pose.pose.orientation, True)}"
         )
+        self.publish_tags()
 
     def get_odom_orientation(self):
         return ArucoProcessor.quaternion_to_euler(
@@ -574,6 +606,7 @@ class ArucoPoseEstimator(Node):
         tags = set()
 
         for j, (msg, cam) in enumerate(zip(msgs, self.cameras)):
+            self.now = msg.header.stamp
             if cam.compressed:
                 cv_image = self.bridge.compressed_imgmsg_to_cv2(
                     msg, desired_encoding="bgr8"
@@ -610,11 +643,14 @@ class ArucoPoseEstimator(Node):
             observations.extend(cam_observations)
             tags.update(cam_tags)
 
-            if self.publish_detections:
+            if self.publish_detections and len(tags) >= 1:
                 cv2.aruco.drawDetectedMarkers(cv_image, corners, ids)
                 aruco_msg = self.bridge.cv2_to_imgmsg(cv_image, header=msg.header)
                 self.image_pubs[j].publish(aruco_msg)
         self.count_pub.publish(Int32(data=len(tags)))
+        
+        for tag in list(tags):
+            self.publish_tag(tag)
 
         if len(observations) < 1:
             self.get_logger().warn("No markers detected!")
@@ -654,6 +690,7 @@ class ArucoPoseEstimator(Node):
         self.update_pose(refined_position, refined_orientation)
 
     def publish_observations(self, observations: List[TagObservation], header):
+        return
         for obs in observations:
             tvec = ArucoProcessor.get_global_position(
                 obs.tvec[0], obs.rvec[0][0], obs.cam.T_imu_cam
@@ -708,27 +745,66 @@ class ArucoPoseEstimator(Node):
             self.get_logger().warn(
                 f"Image callback hasn't been called for {time_since_last_callback:.2f} seconds!"
             )
+            
+    def publish_tag(self, i):
+        marker_position = self.marker_positions[i]
+
+        pose = PoseStamped()
+
+        pose.header.stamp = self.get_clock().now().to_msg()
+        pose.header.frame_id = "global"
+        pose.pose.position.x = marker_position[0]
+        pose.pose.position.y = marker_position[1]
+        pose.pose.position.z = 0.0
+        self.marker_pubs[i].publish(pose)
+
+    def publish_tags(self):
+        for i in self.marker_positions.keys():
+            self.publish_tag(i)
+             
 
     def update_pose(self, position, orientation):
         # Apply the inverse transformation to the calculated position
+        pose_msg_raw = PoseStamped()
+        pose_msg_raw.header.stamp = self.now
+        pose_msg_raw.header.frame_id = "global"
+
+        pose_msg_raw.pose.position.x = position[0]
+        pose_msg_raw.pose.position.y = position[1]
+        pose_msg_raw.pose.position.z = position[2]
+
+        # Convert Euler angles back to quaternion for publishing
+        # quat_array = (R.from_euler("xyz", orientation, degrees=False) * self.offset_orientaiton).as_quat()
+        # quat_array = self.processor.euler_to_quaternion(orientation)
+        quat_array = self.processor.euler_to_quaternion(orientation)
+
+        quat = Quaternion(
+            x=quat_array[0], y=quat_array[1], z=quat_array[2], w=quat_array[3]
+        )
+        pose_msg_raw.pose.orientation = quat
+        
+        self.pose_pub_orig.publish(pose_msg_raw)
+
         transformed_position = self.processor.inverse_transform_position(
             position, self.offset_position, self.yaw
         )
 
-        pose_msg = PoseWithCovarianceStamped()
-        pose_msg.header.stamp = self.get_clock().now().to_msg()
+        pose_msg = PoseStamped()
+        pose_msg.header.stamp = self.now
         pose_msg.header.frame_id = "global"
 
-        pose_msg.pose.pose.position.x = transformed_position[0]
-        pose_msg.pose.pose.position.y = transformed_position[1]
-        pose_msg.pose.pose.position.z = transformed_position[2]
+        pose_msg.pose.position.x = transformed_position[0]
+        pose_msg.pose.position.y = transformed_position[1]
+        pose_msg.pose.position.z = transformed_position[2]
 
         # Convert Euler angles back to quaternion for publishing
-        quat_array = self.processor.euler_to_quaternion(orientation)
+
+        # TODO: Apply negative yaw to this orientation
+        quat_array = (R.from_euler("xyz", orientation, degrees=False) * self.offset_orientaiton).as_quat()
         quat = Quaternion(
             x=quat_array[0], y=quat_array[1], z=quat_array[2], w=quat_array[3]
         )
-        pose_msg.pose.pose.orientation = quat
+        pose_msg.pose.orientation = quat
 
         self.pose_pub.publish(pose_msg)
 
@@ -736,13 +812,9 @@ class ArucoPoseEstimator(Node):
         if not self.client.wait_for_service(timeout_sec=0.1):
             self.get_logger().warn("The /pose_transformer service is not available.")
             return None, None
-        else:
-            self.get_logger().info("The /pose_transformer service is available.")
 
         request = GetParameters.Request()
-        request.names = ["initial_position", "yaw"]
-
-        self.get_logger().info(f"Sending request to /pose_transformer {request}")
+        request.names = ["yaw"]
 
         future = self.client.call_async(request)
 
@@ -750,9 +822,7 @@ class ArucoPoseEstimator(Node):
 
     def callback_odom_transform(self, future):
         response = future.result()
-        self.get_logger().info(f"Received response from /pose_transformer {response}")
-        self.position = response.values[0].double_array_value
-        self.yaw = response.values[1].double_value
+        self.yaw = response.values[0].double_value
 
 
 def main(args=None):

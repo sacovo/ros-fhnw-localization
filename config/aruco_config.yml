@@ -3,9 +3,9 @@
     aruco_dict: DICT_5X5_100
     camera_params_file: config/cameras.yml
     height_over_ground: 0.0
-    marker_length: 0.14
-    marker_positions_file: config/markers_fh.yml
+    marker_length: 0.15
+    marker_positions_file: config/markers_my.yml
     odom_topic: /rover/odom
-    pose_pub_topic: /pose_with_covariance
+    pose_pub_topic: /aruco/pose
     publish_detections: true
     use_sim_time: false

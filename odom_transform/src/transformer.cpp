@@ -4,6 +4,9 @@
 #include <nav_msgs/msg/odometry.hpp>
 #include <nav_msgs/msg/path.hpp>
 
+#include <geometry_msgs/msg/point.h>
+#include <geometry_msgs/msg/quaternion.h>
+
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/convert.h>
@@ -42,6 +45,9 @@ public:
 
         this->get_parameter("path_out", path_out);
         this->get_parameter("path_in", path_in);
+
+        pub_offset_orient = this->create_publisher<geometry_msgs::msg::Quaternion>("/offset/orientation", 2);
+        pub_offset_pos = this->create_publisher<geometry_msgs::msg::Point32>("/offset/position", 2);
 
         if (odom_in != "")
         {
@@ -204,11 +210,21 @@ public:
         {
             calc_offset_orientation(pose.orientation);
         }
+        geometry_msgs::msg::Quaternion quat =tf2::toMsg(offset_orientation.value());
+        pub_offset_orient->publish(quat);
 
         if (!offset_position.has_value())
         {
             calc_offset_position(pose.position);
         }
+
+        geometry_msgs::msg::Point32 offset_pos;
+
+        offset_pos.x = offset_position.value().getX();
+        offset_pos.y = offset_position.value().getY();
+        offset_pos.z = offset_position.value().getZ();
+
+        pub_offset_pos->publish(offset_pos);
 
         // Rotate twist
         geometry_msgs::msg::Twist twist = msg->twist.twist;
@@ -292,6 +308,9 @@ public:
 
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pub_odom;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom;
+    
+    rclcpp::Publisher<geometry_msgs::msg::Point32>::SharedPtr pub_offset_pos;
+    rclcpp::Publisher<geometry_msgs::msg::Quaternion>::SharedPtr pub_offset_orient;
 
     rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pub_pose;
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr sub_pose;
