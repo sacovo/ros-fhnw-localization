@@ -10,3 +10,6 @@
 [submodule "sllidar_ros2"]
 	path = sllidar_ros2
 	url = https://github.com/Slamtec/sllidar_ros2.git
+[submodule "blickfeld_qb2_ros2_driver"]
+	path = blickfeld_qb2_ros2_driver
+	url = https://github.com/Blickfeld/blickfeld_qb2_ros2_driver.git
