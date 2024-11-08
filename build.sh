@@ -12,3 +12,4 @@ cd ..
 
 . install/setup.sh
 colcon build
+colcon build --path blickfeld_qb2_ros2_driver/
