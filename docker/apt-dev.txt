@@ -4,3 +4,6 @@ libopencv-core-dev
 libopencv-dev
 libpcl-dev
 libpcl-msgs-dev
+libgrpc++-dev
+protobuf-compiler-grpc
+libprotobuf-dev

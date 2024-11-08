@@ -9,6 +9,7 @@ ros-humble-tf2-geometry-msgs
 ros-humble-tf2-eigen
 ros-humble-tf2-ros
 ros-humble-vision-opencv
+ros-humble-diagnostic-updater
 
 libpcl-common1.12
 libpcl-tracking1.12
