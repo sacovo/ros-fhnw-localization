@@ -14,9 +14,9 @@ build-docker-image:
   image: docker
   script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker build -f ./docker/Dockerfile -t $CI_REGISTRY_IMAGE:base --target base --pull .
-    - docker build -f ./docker/Dockerfile -t $CI_REGISTRY_IMAGE:builder --target builder --pull .
-    - docker build -f ./docker/Dockerfile -t $IMAGE .
+    - docker build --build-arg USE_PROXY=true -f ./docker/Dockerfile -t $CI_REGISTRY_IMAGE:base --target base --pull .
+    - docker build --build-arg USE_PROXY=true -f ./docker/Dockerfile -t $CI_REGISTRY_IMAGE:builder --target builder --pull .
+    - docker build --build-arg USE_PROXY=true -f ./docker/Dockerfile -t $IMAGE .
     - docker push $IMAGE
     - docker push $CI_REGISTRY_IMAGE:base
     - docker push $CI_REGISTRY_IMAGE:builder

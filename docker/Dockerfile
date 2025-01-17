@@ -5,8 +5,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 COPY ./docker/apt.txt ./docker/requirements.txt /tmp/
 
+ARG USE_PROY=false
+
 # Install required packages and Python dependencies
 RUN --mount=type=cache,target=/var/cache/apt \
+    if [ "$USE_PROXY" = "true" ]; then \
+        echo 'Acquire::http { Proxy "http://172.17.0.1:3142"; }' | tee -a /etc/apt/apt.conf.d/proxy; \
+    fi && \
     rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get update --fix-missing &&  \
     apt-get upgrade -y && \
