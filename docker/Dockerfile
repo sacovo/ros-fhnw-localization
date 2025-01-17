@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 COPY ./docker/apt.txt ./docker/requirements.txt /tmp/
 
-ARG USE_PROY=false
+ARG USE_PROXY=false
 
 # Install required packages and Python dependencies
 RUN --mount=type=cache,target=/var/cache/apt \
