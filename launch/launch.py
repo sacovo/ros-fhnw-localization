@@ -69,7 +69,7 @@ def get_camera_nodes():
                     "height": ZED_HEIGHT,
                     "width": ZED_WIDTH * 2,
                     "fps": ZED_FPS,
-                    "flip": -1,
+                    "flip": 0,
                 }
             ],
         )
