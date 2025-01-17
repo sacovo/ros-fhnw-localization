@@ -1,4 +1,3 @@
-from ament_index_python import get_package_share_directory
 
 from launch_ros.descriptions import ComposableNode
 from launch_ros.actions import ComposableNodeContainer
@@ -24,6 +23,7 @@ ZED_HEIGHT = int(os.environ.get("ZED_HEIGHT", 720))
 ZED_WIDTH = int(os.environ.get("ZED_WIDTH", 1280))
 ZED_FPS = int(os.environ.get("ZED_FPS", 15))
 ZED_INDEX = int(os.environ.get("ZED_INDEX", -1))
+ZED_FLIP = int(os.environ.get("ZED_FLIP", 0))
 
 
 def get_camera_nodes():
@@ -57,9 +57,9 @@ def get_camera_nodes():
     return cameras + [
         Node(
             package="opencv_cam",
-            namespace=f"zed",
+            namespace="zed",
             executable="opencv_cam_main",
-            name=f"zed",
+            name="zed",
             parameters=[
                 {
                     "file": False,
@@ -69,7 +69,7 @@ def get_camera_nodes():
                     "height": ZED_HEIGHT,
                     "width": ZED_WIDTH * 2,
                     "fps": ZED_FPS,
-                    "flip": 0,
+                    "flip": ZED_FLIP,
                 }
             ],
         )
