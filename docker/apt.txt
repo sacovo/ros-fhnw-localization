@@ -13,3 +13,4 @@ ros-humble-diagnostic-updater
 
 libpcl-common1.12
 libpcl-tracking1.12
+libgrpc++1
