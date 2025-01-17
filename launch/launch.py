@@ -1,4 +1,7 @@
 from ament_index_python import get_package_share_directory
+
+from launch_ros.descriptions import ComposableNode
+from launch_ros.actions import ComposableNodeContainer
 import subprocess
 from launch_ros.actions import Node
 import os
@@ -85,6 +88,10 @@ def get_imu_node():
 
     serial_port = config_dict["IMU_publisher"]["ros__parameters"]["serial_port"]
 
+    if not os.path.exists(serial_port):
+        return []
+        
+
     subprocess.run(["sudo", "chmod", "777", serial_port])
 
     return [
@@ -135,7 +142,7 @@ def get_transformer():
 
 
 def get_estimator():
-    estimator = os.environ.get("ESTIMATOR", "openvins")
+    estimator = os.environ.get("ESTIMATOR", "none")
     if estimator == "openvins":
         estimator_config = os.environ.get("ESTIMATOR_CONFIG", "config/openvins/estimator_config.yaml")
         return [
@@ -158,6 +165,44 @@ def get_estimator():
         ]
     return []
 
+def get_qb_node():
+
+    config = os.path.join(
+        "config",
+        "qb_config.yml",
+    )
+
+    with open(config, "r") as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
+
+    container = ComposableNodeContainer(
+        name="blickfeld_qb2_component",
+        namespace="",
+        package="rclcpp_components",
+        executable="component_container",
+        composable_node_descriptions=[
+            ComposableNode(
+                package="blickfeld_qb2_ros2_driver",
+                plugin="blickfeld::ros_interop::Qb2Driver",
+                name="blickfeld_qb2_driver",
+                parameters=[
+                    {
+                        "fqdn": config['fqdn'],
+                        # "serial_number": "XXXXXXXXX",
+                        # "application_key": "YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY",
+                        "frame_id": "lidar",
+                        "point_cloud_topic": config['topic'],
+                        "use_measurement_timestamp": False,
+                        "publish_intensity": config['publish_intensity'],
+                        "publish_point_id": config['publish_point_id'],
+                    }
+                ],
+            ),
+        ],
+        output="screen",
+    )
+    
+    return [container]
 
 def generate_launch_description():
     return LaunchDescription(
@@ -166,4 +211,5 @@ def generate_launch_description():
         + get_wheel_odom()
         + get_estimator()
         + get_transformer()
+        + get_qb_node()
     )
