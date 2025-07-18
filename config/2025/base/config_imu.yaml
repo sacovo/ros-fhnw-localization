@@ -1,0 +1,9 @@
+%YAML:1.0 # need to specify the file type at the top!
+
+imu:
+  accel_noise: 0.008640402077727832
+  accel_bias: 3.6516000589399535e-04
+  gyro_noise: 0.0010269426979875917
+  gyro_bias: 2.7605448901617607e-06
+  topic: "/IMU_data"
+

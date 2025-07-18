@@ -13,3 +13,6 @@
 [submodule "blickfeld_qb2_ros2_driver"]
 	path = blickfeld_qb2_ros2_driver
 	url = https://github.com/Blickfeld/blickfeld_qb2_ros2_driver.git
+[submodule "MINS"]
+	path = MINS
+	url = https://github.com/sacovo/MINS.git
