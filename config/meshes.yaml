@@ -1,0 +1,31 @@
+transforms:
+  # Using RPY (roll, pitch, yaw)
+  - frame: "mars_yard"
+    parent_frame: "global"
+    translation: {x: -12.0, y: 3.0, z: -376.5}
+    rotation:
+      roll: 0.0
+      pitch: 0.0
+      yaw: 1.20  # 90 degrees
+  - frame: "simple"
+    parent_frame: "global"
+    translation: {x: 0.0, y: 0.0, z: -1.5}
+    rotation:
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0  # 0 degrees
+
+resources:
+  - path: "http://192.168.31.224:8081/converted/my.obj"
+    topic: "/visualization/mars_yard"
+    frame: "mars_yard"
+    use_materials: true
+    namespace: "terrain"
+
+  - path: "http://192.168.31.224:8081/rover4.obj"
+    topic: "/visualization/simple"
+    frame: "simple"
+    pose_topic: "/current_pose"  # This mesh will update based on pose messages
+    has_covariance: false  # Indicates that the pose messages have covariance
+    use_materials: false  # Use the color below instead
+    color: {r: 0.8, g: 0.2, b: 0.2, a: 1.0}
