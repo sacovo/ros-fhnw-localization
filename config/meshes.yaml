@@ -16,16 +16,8 @@ transforms:
       yaw: 0.0  # 0 degrees
 
 resources:
-  - path: "http://192.168.31.224:8081/converted/my.obj"
+  - path: "http://192.168.31.225:8081/converted/my.obj"
     topic: "/visualization/mars_yard"
     frame: "mars_yard"
     use_materials: true
     namespace: "terrain"
-
-  - path: "http://192.168.31.224:8081/rover4.obj"
-    topic: "/visualization/simple"
-    frame: "simple"
-    pose_topic: "/current_pose"  # This mesh will update based on pose messages
-    has_covariance: false  # Indicates that the pose messages have covariance
-    use_materials: false  # Use the color below instead
-    color: {r: 0.8, g: 0.2, b: 0.2, a: 1.0}

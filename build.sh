@@ -1,15 +1,28 @@
-#!/bin/sh
+#!/bin/bash
 
-mkdir -p install && cd install 
+source /opt/ros/humble/setup.bash
 
-rm -rf mins mins_data mins_eval
+colcon build --path MINS/thirdparty/libnabo
 
-wget https://github.com/sacovo/MINS/releases/download/latest-build/ros_install.tar.gz
-tar -xvf ros_install.tar.gz
-rm ros_install.tar.gz
+source install/setup.bash
 
-cd ..
+colcon build --path MINS/thirdparty/libpointmatcher
 
-. install/setup.sh
-colcon build
-colcon build --path blickfeld_qb2_ros2_driver/
+source install/setup.bash
+
+colcon build --path MINS/thirdparty/
+
+source install/setup.bash
+
+colcon build --path MINS/thirdparty/open_vins/ov_core/
+
+source install/setup.bash
+
+colcon build --path MINS/mins/
+
+
+source install/setup.bash
+
+colcon build --path fhnw_localization/ fhnw-interfaces/ odom_transform/
+
+source install/setup.bash

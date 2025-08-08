@@ -2,8 +2,8 @@
 
 est:
   gravity_mag: 9.81
-  clone_freq: 30
-  window_size: 1.0
+  clone_freq: 20
+  window_size: 3
   intr_order: 3
   intr_error_mlt: 1.00
   intr_error_ori_thr: 0.007

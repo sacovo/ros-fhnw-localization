@@ -6,6 +6,7 @@ from scipy.spatial.transform import Rotation as R
 from collections import deque
 
 from gtsam.symbol_shorthand import X, L
+import yaml
 
 from rclpy.node import Node
 from geometry_msgs.msg import PointStamped, PoseStamped, PoseWithCovarianceStamped
@@ -145,11 +146,20 @@ class ArucoPoseTracker:
         )
 
         self.publisher_timer = node.create_timer(
-            self.node.declare_parameter("publish_rate", 0.1)
+            self.node.declare_parameter("publish_rate", 0.05)
             .get_parameter_value()
             .double_value,
             self.publisher_callback,
         )
+
+    def odom_callback(self, msg: Odometry):
+        """Callback for receiving odometry messages."""
+        # TODO: Use odometry, as this has a higher frequency than pose messages
+        # But frequency is too high, so instead of inserting every message into the graph,
+        # update the current delta, and only insert it if distance is larger, or marker is detected
+
+        pose = ArucoPoseTracker.msg_to_gtsam_pose(msg.pose)
+        self.current_pose = pose
 
     def pose_callback(self, msg: PoseStamped):
         """Callback for receiving pose messages."""
@@ -271,6 +281,7 @@ class ArucoPoseTracker:
         if not current_estimate.exists(X(self.pose_idx)):
             return
 
+        # TODO: Apply the current delta from odometry if available
         pose_msg = PoseStamped()
         pose_msg.header.stamp = self.node.get_clock().now().to_msg()
         pose_msg.header.frame_id = "global"
@@ -314,7 +325,7 @@ class ArucoPoseTracker:
         self.pose_keys.append(key)
 
         pose_prior_noise = gtsam.noiseModel.Diagonal.Sigmas(
-            np.array([0.01, 0.01, 0.01, 10, 10, 10])
+            np.array([0.1, 0.1, 0.1, 1, 1, 1])
         )
         prior_pose_factor = gtsam.PriorFactorPose3(key, pose, pose_prior_noise)
 
@@ -327,7 +338,7 @@ class ArucoPoseTracker:
         """Setup markers in the graph."""
         for marker_id, position in self.marker_positions.items():
             key = L(marker_id)
-            position = gtsam.Point3(position["x"], position["y"], position["z"])
+            position = gtsam.Point3(position[0], position[1], position[2])
             prior_factor = gtsam.PriorFactorPoint3(
                 key,
                 position,
@@ -345,12 +356,10 @@ def main():
     rclpy.init()
     node = Node("aruco_pose_tracker")
 
-    marker_positions = {
-        51: {"x": -25.48, "y": 1.22, "z": -0.01},
-        52: {"x": -4.341, "y": 8.83, "z": 0.02},
-        53: {"x": -18.79, "y": 7.10, "z": -0.15},
-        55: {"x": -9.338, "y": 1.88, "z": -0.65},
-    }
+    node.declare_parameter("marker_config", "config/markers_fh.yml")
+
+    with open(node.get_parameter("marker_config").value, "r") as f:
+        marker_positions = yaml.safe_load(f)["markers"]
 
     tracker = ArucoPoseTracker(node, marker_positions)
 

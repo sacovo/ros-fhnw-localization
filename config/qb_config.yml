@@ -1,4 +1,0 @@
-fqdn: 172.16.10.106
-topic: /lidar/point_cloud
-publish_intensity: true
-publish_point_id: false

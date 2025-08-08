@@ -1,0 +1,39 @@
+/pose_tracker:
+  ros__parameters:
+    batch_size: 2
+    initial_orientation:
+    - 6.08969028e-17
+    - 0.104528463
+    - -6.4005224e-18
+    - 0.994521895
+    initial_position:
+    - 0.0
+    - 0.0
+    - 0.0
+    # Mars yard:
+   # initial_position:
+   # - 18.6625
+   # - 10.8159
+   # - 204.8022
+    marginalization_frequency: 30
+    marker_config: config/markers_fh.yml
+    max_poses: 50
+    observation_noise:
+    - 0.1
+    - 0.1
+    - 0.5
+    pose_noise:
+    - 0.01
+    - 0.01
+    - 0.01
+    - 0.01
+    - 0.01
+    - 0.01
+    pose_publish_topic: /current_pose
+    pose_topic: /mins/imu/pose
+    poses_to_marginalize: 10
+    publish_rate: 0.05
+    relinearize_skip: 1
+    relinearize_threshold: 0.05
+    use_sim_time: false
+

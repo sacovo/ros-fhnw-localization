@@ -15,7 +15,7 @@ MARKER_DEPTH = 0.12
 MARKER_SIZE = 0.14  # Size of the ArUco marker in meters
 
 
-def mono_aruco_detect(img, cm, dist, detector):
+def mono_aruco_detect(img, cm, dist, detector, marker_size=MARKER_SIZE):
     """
     Detect ArUco markers in a single camera image.
 
@@ -36,7 +36,7 @@ def mono_aruco_detect(img, cm, dist, detector):
     ids = ids.flatten()
     markers = []
 
-    t = np.array([[0, 0, MARKER_DEPTH]])  # Dummy translation vector
+    t = np.array([[0, 0, marker_size]])  # Dummy translation vector
 
     for i, id in enumerate(ids):
         marker_info = {
@@ -46,7 +46,7 @@ def mono_aruco_detect(img, cm, dist, detector):
 
         # Estimate pose
         rvec, tvec, _ = cv2.aruco.estimatePoseSingleMarkers(
-            corners[i], MARKER_SIZE, cm, dist
+            corners[i], marker_size, cm, dist
         )
         # The marker pose is behinde the marker plane, so we need to add the rotated depth to tvec
         # print(tvec)
@@ -60,7 +60,16 @@ def mono_aruco_detect(img, cm, dist, detector):
 
 
 def stereo_aruco_callback(
-    img_left, img_right, cm_left, cm_right, dist_left, dist_right, R, t, detector
+    img_left,
+    img_right,
+    cm_left,
+    cm_right,
+    dist_left,
+    dist_right,
+    R,
+    t,
+    detector,
+    marker_size=MARKER_SIZE,
 ):
     """
     True stereo ArUco detection that leverages both cameras for improved accuracy.
@@ -141,6 +150,7 @@ def stereo_aruco_callback(
                 map1_right,
                 map2_right,
                 Q,
+                marker_size=marker_size,
             )
 
             if marker_pose is not None:
@@ -177,6 +187,7 @@ def triangulate_stereo_marker_pose(
     map1_right,
     map2_right,
     Q,
+    marker_size=MARKER_SIZE,
 ):
     """
     Triangulate 3D marker pose using true stereo geometry.

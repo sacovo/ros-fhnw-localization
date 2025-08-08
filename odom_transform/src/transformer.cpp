@@ -144,8 +144,9 @@ public:
         set_orientation.setEuler(
             deg2rad(angles.at(0)),
             deg2rad(angles.at(1)),
-            deg2rad(angles.at(2))
-        );
+            deg2rad(angles.at(2)));
+
+        RCLCPP_INFO(this->get_logger(), "Setting initial orientation to: %.2f, %.2f, %.2f", angles.at(0), angles.at(1), angles.at(2));
 
         // We need to calculate the offset new, so set this to empty
         offset_orientation = {};
@@ -210,7 +211,7 @@ public:
         {
             calc_offset_orientation(pose.orientation);
         }
-        geometry_msgs::msg::Quaternion quat =tf2::toMsg(offset_orientation.value());
+        geometry_msgs::msg::Quaternion quat = tf2::toMsg(offset_orientation.value());
         pub_offset_orient->publish(quat);
 
         if (!offset_position.has_value())
@@ -260,7 +261,6 @@ public:
         transformed_odom.twist.twist = twist;
 
         pub_odom->publish(transformed_odom);
-
     }
 
     void callback_pose(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)
@@ -308,7 +308,7 @@ public:
 
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pub_odom;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom;
-    
+
     rclcpp::Publisher<geometry_msgs::msg::Point32>::SharedPtr pub_offset_pos;
     rclcpp::Publisher<geometry_msgs::msg::Quaternion>::SharedPtr pub_offset_orient;
 

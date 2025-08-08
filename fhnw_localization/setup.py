@@ -21,6 +21,8 @@ setup(
         "console_scripts": [
             "aruco_detect = fhnw_localization.aruco_detect:main",
             "pose_tracker = fhnw_localization.pose_tracker:main",
+            "visualizer = fhnw_localization.visualizer:main",
+            "ply_publisher = fhnw_localization.ply_publisher:main",
         ],
     },
 )
