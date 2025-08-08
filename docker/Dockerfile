@@ -10,14 +10,14 @@ ARG USE_PROXY=false
 # Install required packages and Python dependencies
 RUN --mount=type=cache,target=/var/cache/apt \
     if [ "$USE_PROXY" = "true" ]; then \
-        echo 'Acquire::http { Proxy "http://172.17.0.1:3142"; }' | tee -a /etc/apt/apt.conf.d/proxy; \
+    echo 'Acquire::http { Proxy "http://172.17.0.1:3142"; }' | tee -a /etc/apt/apt.conf.d/proxy; \
     fi && \
     rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get update --fix-missing &&  \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
-        sudo python3-pip bash \
-        $(cat /tmp/apt.txt | grep -v "^#") && \
+    sudo python3-pip bash \
+    $(cat /tmp/apt.txt | grep -v "^#") && \
     pip3 install --no-cache-dir -r /tmp/requirements.txt
 
 WORKDIR /work
@@ -46,12 +46,12 @@ RUN  --mount=type=cache,target=/var/cache/apt \
     $(cat /tmp/apt-dev.txt | grep -v "^#")
 
 
-    
+
 FROM builder AS build
 
 COPY . .
 
-RUN --mount=type=cache,target=/work/build sh build.sh
+RUN --mount=type=cache,target=/work/build bash build.sh
 
 RUN dos2unix docker/entrypoint.sh
 
