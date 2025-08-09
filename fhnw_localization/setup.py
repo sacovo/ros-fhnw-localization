@@ -23,6 +23,7 @@ setup(
             "pose_tracker = fhnw_localization.pose_tracker:main",
             "visualizer = fhnw_localization.visualizer:main",
             "ply_publisher = fhnw_localization.ply_publisher:main",
+            "optimizer_transform = fhnw_localization.optimizer_transform:main",
         ],
     },
 )

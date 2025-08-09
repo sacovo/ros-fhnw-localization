@@ -44,7 +44,7 @@ def aruco_nodes():
         "ARUCO_PARAMS", "config/stereo_aruco_detector.yaml"
     )
 
-    tracker_params = os.environ.get("TRACKER_PARAMS", "config/pose_tracker.yaml")
+    tracker_params = os.environ.get("TRACKER_PARAMS", "config/optimizer_transform.yml")
 
     return [
         Node(
@@ -63,8 +63,8 @@ def aruco_nodes():
         ),
         Node(
             package="fhnw_localization",
-            executable="pose_tracker",
-            name="pose_tracker",
+            executable="optimizer_transform",
+            name="transform_optimizer",
             parameters=[tracker_params],
         ),
     ]

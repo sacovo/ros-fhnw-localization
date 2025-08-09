@@ -1,4 +1,5 @@
 from typing import Optional
+import os
 import threading
 import gtsam
 import numpy as np
@@ -356,9 +357,9 @@ def main():
     rclpy.init()
     node = Node("aruco_pose_tracker")
 
-    node.declare_parameter("marker_config", "config/markers_fh.yml")
+    path = os.environ.get("MARKER_CONFIG", "config/markers_fh.yml")
 
-    with open(node.get_parameter("marker_config").value, "r") as f:
+    with open(path, "r") as f:
         marker_positions = yaml.safe_load(f)["markers"]
 
     tracker = ArucoPoseTracker(node, marker_positions)

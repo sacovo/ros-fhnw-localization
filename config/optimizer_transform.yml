@@ -1,0 +1,14 @@
+/optimizer_transform_node:
+  ros__parameters:
+    initial_transform:
+    - 0.92
+    - -0.14
+    - -0.46
+    - -0.01448739
+    - -0.04837744
+    - 2.96496546
+    odom_topic: /mins/imu/odom
+    path_topic: /mins/imu/path
+    pose_topic: /mins/imu/pose
+    use_sim_time: false
+
