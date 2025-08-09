@@ -7,6 +7,13 @@
     - -0.01448739
     - -0.04837744
     - 2.96496546
+    offset:
+    - 1.0
+    - -0.5
+    - 0.0
+    - 0.0
+    - 0.0
+    - 90.0
     odom_topic: /mins/imu/odom
     path_topic: /mins/imu/path
     pose_topic: /mins/imu/pose

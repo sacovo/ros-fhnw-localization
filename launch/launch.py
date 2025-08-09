@@ -10,6 +10,8 @@ import yaml
 
 # ros2 run opencv_cam opencv_cam_main --ros-args --remap /image_raw:=/my_camera/image_raw --params-file config/cameras.yml
 
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "warn")
+
 
 def get_transformer():
     config_file = os.environ.get("TRANSFORMER_CONFIG", "config/pose_transformer.yaml")
@@ -20,7 +22,7 @@ def get_transformer():
         arguments=[
             "--ros-args",
             "--log-level",
-            "warn",
+            LOG_LEVEL,
         ],
     )
 
@@ -34,7 +36,7 @@ def get_estimator():
             package="mins",
             namespace="",
             executable="subscribe",
-            arguments=[estimator_config],
+            arguments=[estimator_config, "--ros-args", "--log-level", LOG_LEVEL],
         )
     ]
 
@@ -56,7 +58,7 @@ def aruco_nodes():
             arguments=[
                 "--ros-args",
                 "--log-level",
-                "info",
+                LOG_LEVEL,
                 "--params-file",
                 params_file_aruco_detect,
             ],
@@ -64,8 +66,13 @@ def aruco_nodes():
         Node(
             package="fhnw_localization",
             executable="optimizer_transform",
-            name="transform_optimizer",
+            name="optimizer_transform_node",
             parameters=[tracker_params],
+            arguments=[
+                "--ros-args",
+                "--log-level",
+                LOG_LEVEL,
+            ],
         ),
     ]
 

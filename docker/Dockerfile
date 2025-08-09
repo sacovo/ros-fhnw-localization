@@ -18,7 +18,8 @@ RUN --mount=type=cache,target=/var/cache/apt \
     apt-get install -y --no-install-recommends \
     sudo python3-pip bash \
     $(cat /tmp/apt.txt | grep -v "^#") && \
-    pip3 install --no-cache-dir -r /tmp/requirements.txt
+    pip3 install --no-cache-dir -r /tmp/requirements.txt && \
+    pip3 install "numpy<2"
 
 WORKDIR /work
 

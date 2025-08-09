@@ -75,8 +75,20 @@ class TransformOptimizer:
             .get_parameter_value()
             .double_array_value
         )
+
         self.rot = Rotation.from_rotvec(initial_transform[3:6])
         self.tvec = np.array(initial_transform[:3])
+
+        offset = (
+            node.declare_parameter("offset", [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+            .get_parameter_value()
+            .double_array_value
+        )
+
+        self.offset_rot = Rotation.from_euler("XYZ", offset[3:6], degrees=True)
+        self.offest_tvec = np.array(offset[:3])
+
+        node.get_logger().info(f"Initial transform {initial_transform}")
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, node)
 
@@ -168,6 +180,7 @@ class TransformOptimizer:
         Apply the current transform to a point.
         """
         transformed_point = self.rot.apply([point.x, point.y, point.z]) + self.tvec
+
         point.x = transformed_point[0]
         point.y = transformed_point[1]
         point.z = transformed_point[2]
@@ -177,6 +190,7 @@ class TransformOptimizer:
         # Apply the transform to the pose
         msg.pose.pose.position = self.transform(msg.pose.pose.position)
 
+        # rotate the orientation with the offset rotation
         self.transformed_pose_publisher.publish(msg)
 
     def odom_callback(self, msg: Odometry):
@@ -198,7 +212,7 @@ class TransformOptimizer:
             transformed_pose.header = pose.header
             transformed_pose.pose = pose.pose
             transformed_pose.pose.position = self.transform(
-                transformed_pose.pose.position
+                transformed_pose.pose.position,
             )
             transformed_path.poses.append(transformed_pose)
         self.transformed_path_publisher.publish(transformed_path)

@@ -13,7 +13,8 @@
 		"DISPLAY": "unix:0"
 	},
 	"runArgs": [
-		"--privileged"
+		"--privileged",
+		"--network=host"
 	],
 	"mounts": [
 		"source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached",

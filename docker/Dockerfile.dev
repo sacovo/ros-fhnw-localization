@@ -9,14 +9,16 @@ RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update --fix-missing &&  \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
-        python3-pip gdb \
-        $(cat /tmp/apt.txt | grep -v "^#") \
-        $(cat /tmp/apt-dev.txt | grep -v "^#") && \
+    python3-pip gdb \
+    $(cat /tmp/apt.txt | grep -v "^#") \
+    $(cat /tmp/apt-dev.txt | grep -v "^#") && \
     pip3 install --no-cache-dir pip-tools -r /tmp/requirements.txt -r /tmp/dev-requirements.txt && \
-    apt-get clean && rm -rf /tmp/* /var/tmp/*
+    apt-get clean && rm -rf /tmp/* /var/tmp/*  && \
+    pip3 install "numpy<2"
+
 
 WORKDIR /work
-    
+
 RUN useradd -ms /bin/bash ros && \
     chown ros:ros /work && \
     usermod -aG sudo ros && \

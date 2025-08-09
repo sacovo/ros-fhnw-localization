@@ -4,29 +4,3 @@
 #
 #    pip-compile dev-requirements.in
 #
-joblib==1.4.2
-    # via scikit-learn
-lz4==4.3.3
-    # via rosbags
-numpy==1.26.4
-    # via
-    #   -r dev-requirements.in
-    #   rosbags
-    #   scikit-learn
-    #   scipy
-rosbags==0.10.4
-    # via -r dev-requirements.in
-ruamel-yaml==0.18.6
-    # via rosbags
-ruamel-yaml-clib==0.2.8
-    # via ruamel-yaml
-scikit-learn==1.5.1
-    # via -r dev-requirements.in
-scipy==1.14.0
-    # via scikit-learn
-threadpoolctl==3.5.0
-    # via scikit-learn
-typing-extensions==4.12.2
-    # via rosbags
-zstandard==0.22.0
-    # via rosbags

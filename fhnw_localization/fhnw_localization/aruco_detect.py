@@ -595,7 +595,7 @@ class StereoArucoDetector:
                     np.linalg.norm(position - self.last_marker_positions[marker_id])
                     > 0.1
                 ):
-                    self.node.get_logger().warn(
+                    self.node.get_logger().info(
                         f"New position for marker {marker_id}: {position}, delta: {np.linalg.norm(position - self.last_marker_positions[marker_id])}"
                     )
                     self.last_marker_positions[marker_id] = position
